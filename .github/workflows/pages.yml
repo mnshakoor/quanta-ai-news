@@ -1,0 +1,84 @@
+# Builds a fresh news snapshot with the Java pipeline and deploys it to GitHub Pages.
+# Setup: repository Settings > Pages > Build and deployment > Source: "GitHub Actions".
+name: Publish to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/20 * * * *"   # every 20 minutes (GitHub may delay scheduled runs)
+  workflow_dispatch:
+    inputs:
+      allow_demo:
+        description: "Publish the labelled demo dataset if live feeds fail"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.export.outputs.published }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Compile and self-test
+        run: |
+          javac -d out $(find src -name '*.java')
+          java -cp out news.SelfTest
+
+      - name: Build snapshot
+        id: export
+        env:
+          REFRESH_MINUTES: "20"
+          MIN_FEEDS: "5"
+          # First push has no earlier deployment to fall back on, so allow the demo dataset then.
+          ALLOW_DEMO: ${{ github.event_name == 'push' || inputs.allow_demo == true }}
+        run: |
+          mkdir -p site
+          cp -r web/. site/
+          touch site/.nojekyll
+          set +e
+          java -cp out news.Export site
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "Degraded feed run; keeping the previous deployment."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$code" -eq 0 ] || exit "$code"
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/configure-pages@v5
+        if: steps.export.outputs.published == 'true'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.export.outputs.published == 'true'
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

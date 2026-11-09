@@ -1,0 +1,48 @@
+# Quanta AI News source registry
+# Columns (tab-separated): id	name	bias	factuality	ownership	owner	country	homepage	feedUrl
+# bias: Left | Lean Left | Center | Lean Right | Right
+# factuality: High | Mixed | Low
+# ownership: Media Conglomerate | Independent | Nonprofit | Public Broadcaster | Billionaire-Owned | State-Funded | Private
+# PROVENANCE: bias and factuality values are PROVISIONAL seeds approximated from public
+# aggregate rating charts (AllSides, Ad Fontes Media, Media Bias/Fact Check). Verify and
+# calibrate against a cited methodology before any analytic or published use.
+# An empty feedUrl keeps the outlet rated (for demo data) but skips live fetching.
+nyt	New York Times	Lean Left	High	Media Conglomerate	The New York Times Company	US	https://www.nytimes.com	https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
+wapo	Washington Post	Lean Left	High	Billionaire-Owned	Nash Holdings	US	https://www.washingtonpost.com	https://feeds.washingtonpost.com/rss/national
+guardian	The Guardian	Lean Left	High	Nonprofit	Scott Trust	UK	https://www.theguardian.com	https://www.theguardian.com/world/rss
+cnn	CNN	Lean Left	Mixed	Media Conglomerate	Warner Bros. Discovery	US	https://www.cnn.com	http://rss.cnn.com/rss/cnn_topstories.rss
+nbc	NBC News	Lean Left	High	Media Conglomerate	Comcast	US	https://www.nbcnews.com	https://feeds.nbcnews.com/nbcnews/public/news
+abc	ABC News	Lean Left	High	Media Conglomerate	The Walt Disney Company	US	https://abcnews.go.com	https://abcnews.go.com/abcnews/topstories
+cbs	CBS News	Lean Left	High	Media Conglomerate	Paramount Skydance	US	https://www.cbsnews.com	https://www.cbsnews.com/latest/rss/main
+npr	NPR	Lean Left	High	Public Broadcaster	National Public Radio	US	https://www.npr.org	https://feeds.npr.org/1001/rss.xml
+politico	Politico	Lean Left	High	Media Conglomerate	Axel Springer	US	https://www.politico.com	https://rss.politico.com/politics-news.xml
+aljazeera	Al Jazeera	Lean Left	Mixed	State-Funded	Al Jazeera Media Network	QA	https://www.aljazeera.com	https://www.aljazeera.com/xml/rss/all.xml
+vox	Vox	Left	High	Media Conglomerate	Vox Media	US	https://www.vox.com	https://www.vox.com/rss/index.xml
+huffpost	HuffPost	Left	Mixed	Media Conglomerate	BuzzFeed	US	https://www.huffpost.com	https://www.huffpost.com/section/front-page/feed
+motherjones	Mother Jones	Left	Mixed	Nonprofit	Foundation for National Progress	US	https://www.motherjones.com	https://www.motherjones.com/feed/
+intercept	The Intercept	Left	Mixed	Nonprofit	First Look Institute	US	https://theintercept.com	https://theintercept.com/feed/?rss
+democracynow	Democracy Now!	Left	Mixed	Nonprofit	Democracy Now! Productions	US	https://www.democracynow.org	https://www.democracynow.org/democracynow.rss
+bbc	BBC News	Center	High	Public Broadcaster	British Broadcasting Corporation	UK	https://www.bbc.com/news	https://feeds.bbci.co.uk/news/world/rss.xml
+thehill	The Hill	Center	High	Media Conglomerate	Nexstar Media Group	US	https://thehill.com	https://thehill.com/feed/
+axios	Axios	Center	High	Media Conglomerate	Cox Enterprises	US	https://www.axios.com	https://api.axios.com/feed/
+wsj	Wall Street Journal	Center	High	Media Conglomerate	News Corp	US	https://www.wsj.com	https://feeds.a.dj.com/rss/RSSWorldNews.xml
+newsweek	Newsweek	Center	Mixed	Private	Newsweek Publishing	US	https://www.newsweek.com	https://www.newsweek.com/rss
+cnbc	CNBC	Center	High	Media Conglomerate	Comcast	US	https://www.cnbc.com	https://www.cnbc.com/id/100003114/device/rss/rss.html
+csm	Christian Science Monitor	Center	High	Nonprofit	Christian Science Publishing Society	US	https://www.csmonitor.com	https://rss.csmonitor.com/feeds/all
+dw	Deutsche Welle	Center	High	Public Broadcaster	Deutsche Welle	DE	https://www.dw.com	https://rss.dw.com/rdf/rss-en-all
+france24	France 24	Center	High	Public Broadcaster	France Medias Monde	FR	https://www.france24.com	https://www.france24.com/en/rss
+reuters	Reuters	Center	High	Media Conglomerate	Thomson Reuters	CA	https://www.reuters.com	
+ap	AP	Center	High	Nonprofit	Associated Press	US	https://apnews.com	
+usatoday	USA Today	Center	Mixed	Media Conglomerate	USA TODAY Co.	US	https://www.usatoday.com	
+nypost	NY Post	Lean Right	Mixed	Media Conglomerate	News Corp	US	https://nypost.com	https://nypost.com/feed/
+reason	Reason	Lean Right	High	Nonprofit	Reason Foundation	US	https://reason.com	https://reason.com/feed/
+washexaminer	Washington Examiner	Lean Right	Mixed	Billionaire-Owned	Clarity Media Group	US	https://www.washingtonexaminer.com	https://www.washingtonexaminer.com/feed
+washtimes	Washington Times	Lean Right	Mixed	Private	Operations Holdings	US	https://www.washingtontimes.com	https://www.washingtontimes.com/rss/headlines/news/
+foxnews	Fox News	Right	Mixed	Media Conglomerate	Fox Corporation	US	https://www.foxnews.com	https://moxie.foxnews.com/google-publisher/latest.xml
+breitbart	Breitbart	Right	Low	Private	Breitbart News Network	US	https://www.breitbart.com	https://feeds.feedburner.com/breitbart
+dailywire	Daily Wire	Right	Mixed	Independent	The Daily Wire	US	https://www.dailywire.com	https://www.dailywire.com/feeds/rss.xml
+federalist	The Federalist	Right	Mixed	Independent	FDRLST Media	US	https://thefederalist.com	https://thefederalist.com/feed/
+dailycaller	Daily Caller	Right	Mixed	Independent	Daily Caller Inc.	US	https://dailycaller.com	https://dailycaller.com/feed/
+nationalreview	National Review	Right	Mixed	Nonprofit	National Review Institute	US	https://www.nationalreview.com	https://www.nationalreview.com/feed/
+blaze	The Blaze	Right	Mixed	Independent	Blaze Media	US	https://www.theblaze.com	https://www.theblaze.com/feeds/feed.rss
+newsmax	Newsmax	Right	Mixed	Private	Newsmax Media	US	https://www.newsmax.com	https://www.newsmax.com/rss/Newsfront/16/
