@@ -75,7 +75,7 @@ final class Views {
         String region = q.getOrDefault("region", "");
         String text = q.getOrDefault("q", "").toLowerCase(Locale.ROOT).trim();
         String ids = q.getOrDefault("ids", "");
-        int limit = Math.min(200, Math.max(1, parseInt(q.get("limit"), 60)));
+        int limit = Math.min(300, Math.max(1, parseInt(q.get("limit"), 60)));
 
         List<Models.Story> list = snap.stories();
         if (!ids.isEmpty()) {

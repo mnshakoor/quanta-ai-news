@@ -50,7 +50,7 @@ public final class Export {
         Map<String, Object> meta = v.meta();
         meta.put("static", true);
         write(data.resolve("meta.json"), meta);
-        write(data.resolve("stories.json"), v.listStories(Map.of("view", "top", "limit", "200")));
+        write(data.resolve("stories.json"), v.listStories(Map.of("view", "top", "limit", "300")));
         write(data.resolve("sources.json"), v.sources());
         java.util.List<Object> sums = new java.util.ArrayList<>();
         snap.summaries().values().forEach(x -> sums.add(Summarizer.toJson(x)));
@@ -58,7 +58,7 @@ public final class Export {
         int n = 0;
         for (Models.Story s : snap.stories()) {
             write(detail.resolve(s.id() + ".json"), v.storyDetail(s));
-            if (++n >= 200) break;
+            if (++n >= 300) break;
         }
         System.out.printf("[export] wrote %d stories (mode=%s, %d articles, %d feeds ok) to %s%n",
                 n, snap.mode(), snap.articleCount(), feedsOk, data.toAbsolutePath());

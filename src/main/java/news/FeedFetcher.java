@@ -116,6 +116,13 @@ final class FeedFetcher {
         if (resp.statusCode() >= 400) throw new IllegalStateException("HTTP " + resp.statusCode());
         byte[] body = decompress(resp.body(), resp.headers().firstValue("content-encoding").orElse(""));
         String ctype = resp.headers().firstValue("content-type").orElse("");
+        int lt = 0;
+        while (lt < body.length && body[lt] != '<') lt++;
+        if (lt >= body.length) {
+            // Empty or non-XML body (often a bot-check or consent page): report what arrived.
+            throw new IllegalStateException("HTTP " + resp.statusCode() + " non-XML body (" + body.length
+                    + " bytes, content-type " + (ctype.isEmpty() ? "none" : ctype) + ")");
+        }
         return toUtf8IfNeeded(body, ctype);
     }
 

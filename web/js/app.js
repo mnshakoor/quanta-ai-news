@@ -65,7 +65,7 @@
   function filterStatic(all, q) {
     const view = q.get('view') || 'top', bias = q.get('bias') || 'all';
     const cat = (q.get('category') || '').toLowerCase(), text = (q.get('q') || '').toLowerCase().trim();
-    const ids = q.get('ids'), limit = Math.min(200, Math.max(1, parseInt(q.get('limit') || '60', 10)));
+    const ids = q.get('ids'), limit = Math.min(300, Math.max(1, parseInt(q.get('limit') || '60', 10)));
     let list = all.slice();
     if (ids) { const want = new Set(ids.split(',')); list = list.filter((s) => want.has(s.id)); }
     if (view === 'blindspot') list = list.filter((s) => s.blindspot);
@@ -512,7 +512,7 @@
     view.innerHTML = `<h1 class="page-title">Saved stories</h1><p class="page-lede">Bookmarks are stored in this browser.</p>${ids.length ? skeleton(2) : ''}`;
     if (!ids.length) { view.insertAdjacentHTML('beforeend', '<div class="empty-state">Nothing saved yet. Use the bookmark icon on any story.</div>'); return; }
     try {
-      const { items } = await api('/stories?view=top&limit=200&ids=' + encodeURIComponent(ids.join(',')));
+      const { items } = await api('/stories?view=top&limit=300&ids=' + encodeURIComponent(ids.join(',')));
       const missing = ids.length - items.length;
       view.innerHTML = `<h1 class="page-title">Saved stories</h1><p class="page-lede">Bookmarks are stored in this browser.${missing > 0 ? ` ${missing} saved ${missing === 1 ? 'story has' : 'stories have'} aged out of the current news cycle.` : ''}</p>
         ${items.length ? `<div class="story-list">${items.map(storyCard).join('')}</div>` : '<div class="empty-state">Your saved stories have aged out of the current cycle.</div>'}
