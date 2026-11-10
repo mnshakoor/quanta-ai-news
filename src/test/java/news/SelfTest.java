@@ -283,6 +283,7 @@ public final class SelfTest {
         byte[] cp1252 = ("<rss><channel><item><title>Caf\u00e9 talks \u2019collapse\u2019</title><link>https://t.test/w/1</link>"
                 + "<pubDate>" + now + "</pubDate></item></channel></rss>").getBytes("windows-1252");
 
+        int[] limitedHits = {0};
         com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         srv.createContext("/", ex -> {
             String path = ex.getRequestURI().getPath();
@@ -292,6 +293,10 @@ public final class SelfTest {
                 case "/gzip-silent" -> out = gz.toByteArray();
                 case "/cp1252" -> { ex.getResponseHeaders().set("Content-Type", "application/rss+xml"); out = cp1252; }
                 case "/ok" -> out = xml.getBytes(StandardCharsets.UTF_8);
+                case "/limited" -> {
+                    if (limitedHits[0]++ == 0) { code = 429; ex.getResponseHeaders().set("Retry-After", "1"); out = new byte[0]; }
+                    else out = xml.getBytes(StandardCharsets.UTF_8);
+                }
                 default -> { code = 404; out = "not found".getBytes(StandardCharsets.UTF_8); }
             }
             ex.sendResponseHeaders(code, out.length);
@@ -309,6 +314,7 @@ public final class SelfTest {
             String t = ff.fetch(src.apply(base + "/cp1252")).get(0).title();
             check(t.equals("Caf\u00e9 talks \u2019collapse\u2019"), "windows-1252 feed without declaration decoded (" + t + ")");
             check(ff.fetch(src.apply(base + "/missing | " + base + "/ok")).size() == 1, "fallback feed URL used after 404");
+            check(ff.fetch(src.apply(base + "/limited")).size() == 1 && limitedHits[0] == 2, "HTTP 429 retried once after Retry-After");
             boolean threw = false;
             try { ff.fetch(src.apply(base + "/missing")); } catch (IllegalStateException e) { threw = e.getMessage().contains("404"); }
             check(threw, "single failing URL still reports HTTP status");

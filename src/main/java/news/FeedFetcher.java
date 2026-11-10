@@ -123,6 +123,16 @@ final class FeedFetcher {
         } catch (java.io.IOException e) {
             resp = http11.send(req, HttpResponse.BodyHandlers.ofByteArray()); // HTTP/2 stream faults
         }
+        if (resp.statusCode() == 429) {
+            // Rate limited: honour Retry-After once (capped at 15 s), then give up for this run.
+            long wait = resp.headers().firstValue("retry-after").map(v -> {
+                try { return Long.parseLong(v.trim()); } catch (NumberFormatException e) { return 5L; }
+            }).orElse(5L);
+            if (wait <= 15) {
+                Thread.sleep(Math.max(1, wait) * 1000);
+                resp = http11.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            }
+        }
         if (resp.statusCode() >= 400) throw new IllegalStateException("HTTP " + resp.statusCode());
         byte[] body = decompress(resp.body(), resp.headers().firstValue("content-encoding").orElse(""));
         String ctype = resp.headers().firstValue("content-type").orElse("");
