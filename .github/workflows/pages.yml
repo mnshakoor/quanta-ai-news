@@ -41,11 +41,21 @@ jobs:
           javac -d out $(find src -name '*.java')
           java -cp out news.SelfTest
 
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
       - name: Build snapshot
         id: export
         env:
           REFRESH_MINUTES: "20"
           MIN_FEEDS: "5"
+          # AI summaries (Inception Mercury 3). Disabled automatically when the secret is absent.
+          INCEPTION_API_KEY: ${{ secrets.INCEPTION_API_KEY }}
+          SUMMARY_MODEL: mercury-3
+          SUMMARY_MAX_NEW: "30"
+          PREVIOUS_SUMMARIES_URL: ${{ steps.pages.outputs.base_url }}/data/summaries.json
+          REPORT_URL: ${{ github.server_url }}/${{ github.repository }}/issues/new
           # First push has no earlier deployment to fall back on, so allow the demo dataset then.
           ALLOW_DEMO: ${{ github.event_name == 'push' || inputs.allow_demo == true }}
         run: |
@@ -63,9 +73,6 @@ jobs:
           fi
           [ "$code" -eq 0 ] || exit "$code"
           echo "published=true" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/configure-pages@v6
-        if: steps.export.outputs.published == 'true'
 
       - uses: actions/upload-pages-artifact@v5
         if: steps.export.outputs.published == 'true'

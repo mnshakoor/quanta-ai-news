@@ -226,6 +226,22 @@ main { padding-top: 24px; padding-bottom: 48px; min-height: 70vh; outline: none;
 .hbar .n { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
 
+/* AI summary ---------------------------------------------------------- */
+.ai-summary { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+.ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-bottom: 8px; }
+.ai-badge { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 999px; }
+.ai-summary ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.ai-summary li { font-size: 15px; color: var(--ink); }
+.ai-cites { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: 1px; }
+.ai-cites .chip { font-size: 10.5px; padding: 1px 7px; }
+.ai-framing { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; }
+.ai-side { font-size: 13px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.ai-side b { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.ai-side.l b { color: var(--left); } .ai-side.c b { color: var(--center); } .ai-side.r b { color: var(--right); }
+.ai-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+.ai-report { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.tag-ai { background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); letter-spacing: .06em; }
+
 /* Blindspot page ------------------------------------------------------ */
 .bs-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .bs-head { border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }

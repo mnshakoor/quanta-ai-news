@@ -47,6 +47,10 @@ final class Views {
         cov.put("right", Math.round(100.0 * r / t));
         m.put("coverage", cov);
         m.put("categories", cats);
+        m.put("summaryCount", snap.summaries().size());
+        m.put("summaryModel", snap.summaries().values().stream().map(Summarizer.Summary::model).findFirst().orElse(null));
+        String report = System.getenv("REPORT_URL");
+        if (report != null && report.startsWith("https://")) m.put("reportUrl", report);
         m.put("method", Map.of("clusterThreshold", Clusterer.THRESHOLD, "minSources", Clusterer.MIN_SOURCES,
                 "blindspotMinSources", StoryBuilder.BLINDSPOT_MIN_SOURCES,
                 "blindspotDominant", StoryBuilder.BLINDSPOT_DOMINANT,
@@ -98,6 +102,7 @@ final class Views {
         m.put("pct", Map.of("left", s.pct(s.left()), "center", s.pct(s.center()), "right", s.pct(s.right())));
         m.put("blindspot", s.blindspot());
         m.put("polarized", s.polarized());
+        m.put("hasSummary", snap.summaries().containsKey(s.id()));
         List<Object> outlets = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Models.Article a : s.articles()) {
@@ -140,6 +145,8 @@ final class Views {
         m.put("biasFive", five);
         m.put("articles", arts);
         m.put("demo", s.id().startsWith("demo"));
+        Summarizer.Summary sum = snap.summaries().get(s.id());
+        if (sum != null) m.put("aiSummary", summaryView(sum));
         return m;
     }
 
@@ -184,5 +191,24 @@ final class Views {
 
     private static int parseInt(String s, int def) {
         try { return s == null ? def : Integer.parseInt(s); } catch (NumberFormatException e) { return def; }
+    }
+
+    /** Resolves cited outlet ids to names and ratings for display. */
+    private Map<String, Object> summaryView(Summarizer.Summary sum) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("model", sum.model());
+        m.put("generatedAt", sum.generatedAt());
+        List<Object> bullets = new ArrayList<>();
+        for (Summarizer.Bullet b : sum.bullets()) {
+            List<Object> srcs = new ArrayList<>();
+            for (String id : b.sourceIds()) {
+                Models.Source src = registry.byId(id);
+                if (src != null) srcs.add(Map.of("id", id, "name", src.name(), "bias", src.bias()));
+            }
+            bullets.add(Map.of("text", b.text(), "sources", srcs));
+        }
+        m.put("bullets", bullets);
+        m.put("framing", sum.framing());
+        return m;
     }
 }

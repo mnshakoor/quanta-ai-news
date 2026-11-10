@@ -23,6 +23,34 @@ Behaviour to know:
 - **Runner network:** some publishers block cloud IP ranges. Feed health for each outlet appears on the Sources page.
 - **Public republication:** the site republishes headlines and short feed summaries with links to the originals, which is standard aggregator practice. Review each publisher's feed terms if the site is used commercially.
 
+## AI summaries (Inception Mercury 3)
+
+Each story can carry 3 to 5 AI-generated bullets plus a one-line note on how left, center and right outlets framed it. They are generated during the build, never in the visitor's browser, so the API key is never exposed.
+
+**Setup:** add your Inception API key as a repository secret named `INCEPTION_API_KEY` (**Settings > Secrets and variables > Actions > New repository secret**). Without the secret, the build runs normally and simply publishes no summaries.
+
+**Grounding rules,** enforced in `Summarizer.java` and covered by `SelfTest`:
+
+1. The model receives only the story's headlines and feed excerpts, labelled S1..Sn, and must cite the labels behind every bullet.
+2. A bullet that cites no valid source is dropped.
+3. A bullet containing a number absent from its cited sources is dropped. Framing lines get the same check.
+4. If fewer than 2 bullets survive, no summary is shown.
+5. Contested claims must be attributed to whoever made them, and instructions embedded in feed text are to be ignored.
+
+**Cost control:** summaries are cached by a hash of the prompt version and the story's article links. Each run loads the previous deployment's `data/summaries.json` and re-summarizes only new or changed stories, at most `SUMMARY_MAX_NEW` per run (default 30).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `INCEPTION_API_KEY` | (unset) | Enables summaries |
+| `SUMMARY_MODEL` | `mercury-3` | Model ID |
+| `SUMMARY_ENDPOINT` | `https://api.inceptionlabs.ai/v1/chat/completions` | Any OpenAI-compatible endpoint |
+| `SUMMARY_MAX_NEW` | `30` | New summaries per run |
+| `SUMMARY_THREADS` | `3` | Concurrent API calls |
+
+The same variables work for the local server: `INCEPTION_API_KEY=... ./run.sh`.
+
+**Limits:** summaries restate what outlets reported and are not fact-checks. The number check catches invented figures but not wrong framing or numbers written as words.
+
 ## Run locally
 
 Requires JDK 21 or later.
@@ -102,6 +130,7 @@ These offline tests cover RSS, Atom, and XXE parsing, clustering, blindspot scor
 ```
 config/sources.tsv        outlet registry (edit to add or re-rate outlets)
 src/main/java/news/       Main (live server + API), Export (static snapshot for Pages), Views (JSON shapes),
+                          Summarizer (grounded AI summaries), MiniJson (JSON parser),
                           FeedFetcher, Clusterer, StoryBuilder, StoryStore, DemoData
 .github/workflows/        pages.yml (scheduled build and deploy)
 src/test/java/news/       SelfTest
