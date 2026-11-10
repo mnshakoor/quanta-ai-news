@@ -81,6 +81,7 @@ public final class SelfTest {
         summarizerTests(reg);
         regionTests(reg);
         categoryRegressionTests(reg);
+        feedRobustnessTests();
 
         System.out.println(failures == 0 ? "ALL TESTS PASSED" : failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
@@ -269,6 +270,50 @@ public final class SelfTest {
               "sea clash with 'trade accusations' filed as Security & Conflict");
         check(cat.apply(new String[]{"Auto workers' labor strike enters third week", "Union walkout hits car plants"}).equals("Business"),
               "labor strike still filed as Business");
+    }
+
+    private static void feedRobustnessTests() throws Exception {
+        System.out.println("  -- feed robustness");
+        String now = DateTimeFormatter.RFC_1123_DATE_TIME.format(Instant.now().atOffset(ZoneOffset.UTC));
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss><channel><item><title>UN warns of famine in Sudan</title>"
+                + "<link>https://t.test/un/1</link><pubDate>" + now + "</pubDate></item></channel></rss>";
+        java.io.ByteArrayOutputStream gz = new java.io.ByteArrayOutputStream();
+        try (var out = new java.util.zip.GZIPOutputStream(gz)) { out.write(xml.getBytes(StandardCharsets.UTF_8)); }
+        byte[] cp1252 = ("<rss><channel><item><title>Caf\u00e9 talks \u2019collapse\u2019</title><link>https://t.test/w/1</link>"
+                + "<pubDate>" + now + "</pubDate></item></channel></rss>").getBytes("windows-1252");
+
+        com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        srv.createContext("/", ex -> {
+            String path = ex.getRequestURI().getPath();
+            byte[] out; int code = 200;
+            switch (path) {
+                case "/gzip-header" -> { ex.getResponseHeaders().set("Content-Encoding", "gzip"); out = gz.toByteArray(); }
+                case "/gzip-silent" -> out = gz.toByteArray();
+                case "/cp1252" -> { ex.getResponseHeaders().set("Content-Type", "application/rss+xml"); out = cp1252; }
+                case "/ok" -> out = xml.getBytes(StandardCharsets.UTF_8);
+                default -> { code = 404; out = "not found".getBytes(StandardCharsets.UTF_8); }
+            }
+            ex.sendResponseHeaders(code, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        srv.start();
+        try {
+            String base = "http://127.0.0.1:" + srv.getAddress().getPort();
+            FeedFetcher ff = new FeedFetcher();
+            java.util.function.Function<String, Models.Source> src = url ->
+                new Models.Source("t", "Test", "Unrated", "Unrated", "Private", "o", "INT", base, url, "Global");
+            check(ff.fetch(src.apply(base + "/gzip-header")).get(0).title().contains("famine"), "gzip body with Content-Encoding header parsed");
+            check(ff.fetch(src.apply(base + "/gzip-silent")).get(0).title().contains("famine"), "gzip body without header detected by magic bytes");
+            String t = ff.fetch(src.apply(base + "/cp1252")).get(0).title();
+            check(t.equals("Caf\u00e9 talks \u2019collapse\u2019"), "windows-1252 feed without declaration decoded (" + t + ")");
+            check(ff.fetch(src.apply(base + "/missing | " + base + "/ok")).size() == 1, "fallback feed URL used after 404");
+            boolean threw = false;
+            try { ff.fetch(src.apply(base + "/missing")); } catch (IllegalStateException e) { threw = e.getMessage().contains("404"); }
+            check(threw, "single failing URL still reports HTTP status");
+        } finally {
+            srv.stop(0);
+        }
     }
 
     private static void check(boolean ok, String name) {

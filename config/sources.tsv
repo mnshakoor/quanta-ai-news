@@ -11,6 +11,7 @@
 # count as coverage but are excluded from the L/C/R distribution and the blindspot rules.
 # Feed URLs for outlets added in the international expansion were not verified at commit time; the
 # Sources page reports live feed health. An empty feedUrl keeps the outlet rated but skips fetching.
+# feedUrl may list fallbacks separated by ' | '; they are tried in order.
 
 nyt	New York Times	Lean Left	High	Media Conglomerate	The New York Times Company	US	https://www.nytimes.com	https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml	North America
 wapo	Washington Post	Lean Left	High	Billionaire-Owned	Nash Holdings	US	https://www.washingtonpost.com	https://feeds.washingtonpost.com/rss/national	North America
@@ -66,7 +67,7 @@ skynews	Sky News	Unrated	Unrated	Media Conglomerate	Comcast	UK	https://news.sky.
 independent	The Independent	Unrated	Unrated	Private	Independent Digital News & Media	UK	https://www.independent.co.uk	https://www.independent.co.uk/news/world/rss	Europe
 rfi	RFI	Unrated	Unrated	Public Broadcaster	France Medias Monde	FR	https://www.rfi.fr/en/	https://www.rfi.fr/en/rss	Europe
 elpaisen	EL PAIS English	Unrated	Unrated	Media Conglomerate	PRISA	ES	https://english.elpais.com	https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada	Europe
-kyivindependent	The Kyiv Independent	Unrated	Unrated	Independent	The Kyiv Independent	UA	https://kyivindependent.com	https://kyivindependent.com/rss/	Russia & Eurasia
+kyivindependent	The Kyiv Independent	Unrated	Unrated	Independent	The Kyiv Independent	UA	https://kyivindependent.com	https://kyivindependent.com/news-archive/rss/ | https://kyivindependent.com/feed/ | https://kyivindependent.com/rss.xml	Russia & Eurasia
 meduza	Meduza	Unrated	Unrated	Independent	Meduza	LV	https://meduza.io/en	https://meduza.io/rss/en/all	Russia & Eurasia
 moscowtimes	The Moscow Times	Unrated	Unrated	Independent	The Moscow Times	NL	https://www.themoscowtimes.com	https://www.themoscowtimes.com/rss/news	Russia & Eurasia
 tass	TASS	Unrated	Unrated	State-Funded	Government of the Russian Federation	RU	https://tass.com	https://tass.com/rss/v2.xml	Russia & Eurasia
@@ -84,14 +85,14 @@ dawn	Dawn	Unrated	Unrated	Private	Dawn Media Group	PK	https://www.dawn.com	https
 allafrica	AllAfrica	Unrated	Unrated	Private	AllAfrica Global Media	AFR	https://allafrica.com	https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf	Sub-Saharan Africa
 africanews	Africanews	Unrated	Unrated	Private	Alpac Capital	CG	https://www.africanews.com	https://www.africanews.com/feed/rss	Sub-Saharan Africa
 dailymaverick	Daily Maverick	Unrated	Unrated	Independent	Daily Maverick	ZA	https://www.dailymaverick.co.za	https://www.dailymaverick.co.za/dmrss/	Sub-Saharan Africa
-news24	News24	Unrated	Unrated	Media Conglomerate	Media24 (Naspers)	ZA	https://www.news24.com	https://feeds.24.com/articles/news24/TopStories/rss	Sub-Saharan Africa
+news24	News24	Unrated	Unrated	Media Conglomerate	Media24 (Naspers)	ZA	https://www.news24.com	https://feeds.news24.com/articles/news24/TopStories/rss | https://www.news24.com/rss | https://feeds.24.com/articles/news24/TopStories/rss	Sub-Saharan Africa
 premiumtimes	Premium Times	Unrated	Unrated	Independent	Premium Times Services	NG	https://www.premiumtimesng.com	https://www.premiumtimesng.com/feed	Sub-Saharan Africa
 nationke	Nation (Kenya)	Unrated	Unrated	Media Conglomerate	Nation Media Group	KE	https://nation.africa	https://nation.africa/kenya/rss.xml	Sub-Saharan Africa
 mercopress	MercoPress	Unrated	Unrated	Private	MercoPress	UY	https://en.mercopress.com	https://en.mercopress.com/rss/	Latin America
 batimes	Buenos Aires Times	Unrated	Unrated	Private	Editorial Perfil	AR	https://www.batimes.com.ar	https://www.batimes.com.ar/feed	Latin America
 mexiconewsdaily	Mexico News Daily	Unrated	Unrated	Private	Mexico News Daily	MX	https://mexiconewsdaily.com	https://mexiconewsdaily.com/feed/	Latin America
 riotimes	The Rio Times	Unrated	Unrated	Private	The Rio Times	BR	https://www.riotimesonline.com	https://www.riotimesonline.com/feed/	Latin America
-telesur	teleSUR English	Unrated	Unrated	State-Funded	Venezuelan-led state consortium	VE	https://www.telesurenglish.net	https://www.telesurenglish.net/rss/RssHomepage.xml	Latin America
+telesur	teleSUR English	Unrated	Unrated	State-Funded	Venezuelan-led state consortium	VE	https://www.telesurenglish.net	https://www.telesurenglish.net/feed/ | https://www.telesurenglish.net/rss/ | https://www.telesurenglish.net/rss/RssHomepage.xml	Latin America
 foreignpolicy	Foreign Policy	Unrated	Unrated	Private	Graham Holdings	US	https://foreignpolicy.com	https://foreignpolicy.com/feed/	Global
 warontherocks	War on the Rocks	Unrated	Unrated	Independent	Metamorphic Media	US	https://warontherocks.com	https://warontherocks.com/feed/	Global
 defenseone	Defense One	Unrated	Unrated	Private	Government Executive Media Group	US	https://www.defenseone.com	https://www.defenseone.com/rss/all/	Global

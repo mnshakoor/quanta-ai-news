@@ -74,15 +74,90 @@ final class FeedFetcher {
         return new Result(new ArrayList<>(all), new HashMap<>(status));
     }
 
-    private List<Models.Article> fetch(Models.Source s) throws Exception {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(s.feedUrl()))
+    /** HTTP/1.1-only client, used to retry after HTTP/2 stream resets (RST_STREAM, GOAWAY). */
+    private final HttpClient http11 = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(10))
+            .proxy(ProxySelector.getDefault())
+            .build();
+
+    /**
+     * Fetches a source's feed. feedUrl may list fallbacks separated by " | "; they are tried in
+     * order and the first that parses wins. The User-Agent identifies this reader honestly; a
+     * publisher that refuses it (HTTP 403) is reported as failing, not worked around.
+     */
+    List<Models.Article> fetch(Models.Source s) throws Exception {
+        Exception last = null;
+        for (String url : s.feedUrl().split("\\s*\\|\\s*")) {
+            if (url.isBlank()) continue;
+            try {
+                return parse(s, download(url.trim()));
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw last == null ? new IllegalStateException("no feed URL") : last;
+    }
+
+    private byte[] download(String url) throws Exception {
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(20))
                 .header("User-Agent", "Mozilla/5.0 (compatible; QuantaAINewsReader/1.0; RSS aggregator)")
                 .header("Accept", "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate")
                 .GET().build();
-        HttpResponse<byte[]> resp = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        HttpResponse<byte[]> resp;
+        try {
+            resp = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (java.io.IOException e) {
+            resp = http11.send(req, HttpResponse.BodyHandlers.ofByteArray()); // HTTP/2 stream faults
+        }
         if (resp.statusCode() >= 400) throw new IllegalStateException("HTTP " + resp.statusCode());
-        return parse(s, resp.body());
+        byte[] body = decompress(resp.body(), resp.headers().firstValue("content-encoding").orElse(""));
+        String ctype = resp.headers().firstValue("content-type").orElse("");
+        return toUtf8IfNeeded(body, ctype);
+    }
+
+    /** Undoes gzip/deflate, detected from the header or from the gzip magic bytes. */
+    static byte[] decompress(byte[] body, String encoding) throws java.io.IOException {
+        boolean gzipMagic = body.length > 2 && (body[0] & 0xff) == 0x1f && (body[1] & 0xff) == 0x8b;
+        String enc = encoding.toLowerCase(Locale.ROOT);
+        if (gzipMagic || enc.contains("gzip")) {
+            try (var in = new java.util.zip.GZIPInputStream(new ByteArrayInputStream(body))) { return in.readAllBytes(); }
+        }
+        if (enc.contains("deflate")) {
+            try (var in = new java.util.zip.InflaterInputStream(new ByteArrayInputStream(body))) { return in.readAllBytes(); }
+        }
+        return body;
+    }
+
+    /**
+     * Normalizes to UTF-8 when the XML declares no encoding but the HTTP header names a
+     * non-UTF-8 charset, or when the bytes are not valid UTF-8 at all (read as windows-1252).
+     */
+    static byte[] toUtf8IfNeeded(byte[] body, String contentType) {
+        String head = new String(body, 0, Math.min(body.length, 200), java.nio.charset.StandardCharsets.ISO_8859_1).toLowerCase(Locale.ROOT);
+        boolean declared = head.contains("encoding=");
+        Matcher m = Pattern.compile("charset=\"?([\\w-]+)").matcher(contentType.toLowerCase(Locale.ROOT));
+        java.nio.charset.Charset target = null;
+        if (!declared && m.find()) {
+            try { target = java.nio.charset.Charset.forName(m.group(1)); } catch (Exception ignored) { /* unknown charset */ }
+        }
+        if (target == null && !declared && !validUtf8(body)) target = java.nio.charset.Charset.forName("windows-1252");
+        if (target == null || target.equals(java.nio.charset.StandardCharsets.UTF_8)) return body;
+        return new String(body, target).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static boolean validUtf8(byte[] b) {
+        try {
+            java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(b));
+            return true;
+        } catch (java.nio.charset.CharacterCodingException e) {
+            return false;
+        }
     }
 
     static List<Models.Article> parse(Models.Source s, byte[] body) throws Exception {
