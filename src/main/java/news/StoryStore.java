@@ -56,6 +56,11 @@ final class StoryStore {
             long t0 = System.currentTimeMillis();
             FeedFetcher.Result r = fetcher.fetchAll(registry.all(), maxAge);
             long ok = r.status().values().stream().filter(Models.FeedStatus::ok).count();
+            List<String> failed = r.status().values().stream().filter(st -> !st.ok())
+                    .map(st -> st.sourceId() + " (" + st.error() + ")").sorted().toList();
+            if (!failed.isEmpty()) {
+                System.out.println("[feeds] " + failed.size() + " failed: " + String.join("; ", failed));
+            }
             List<Models.Story> stories = clusterer.cluster(r.articles());
             if (stories.isEmpty()) {
                 System.out.printf("[refresh] no live stories (%d/%d feeds ok, %d articles); serving demo data%n",

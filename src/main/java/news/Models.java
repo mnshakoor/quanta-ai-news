@@ -10,13 +10,14 @@ final class Models {
     /** A news outlet and its (provisional) ratings. */
     record Source(String id, String name, String bias, String factuality,
                   String ownership, String owner, String country,
-                  String homepage, String feedUrl) {
+                  String homepage, String feedUrl, String region) {
 
         /** Collapses the five-point scale into left, center, right. */
         String group() {
             return switch (bias) {
                 case "Left", "Lean Left" -> "left";
                 case "Right", "Lean Right" -> "right";
+                case "Unrated" -> "unrated";
                 default -> "center";
             };
         }
@@ -35,9 +36,12 @@ final class Models {
     /** A cluster of articles from several outlets about the same event. */
     record Story(String id, String title, String summary, String category,
                  String image, Instant firstSeen, Instant lastUpdated,
-                 List<Article> articles, int left, int center, int right,
+                 List<Article> articles, int left, int center, int right, int unrated,
                  int sourceCount, String blindspot, boolean polarized,
-                 double score) {
+                 double score, String eventRegion) {
+
+        /** Outlets on the US left/center/right scale; unrated (international) outlets excluded. */
+        int rated() { return left + center + right; }
 
         int pct(int n) {
             int total = left + center + right;

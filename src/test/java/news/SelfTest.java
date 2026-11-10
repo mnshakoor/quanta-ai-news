@@ -79,6 +79,8 @@ public final class SelfTest {
         check(Json.write(java.util.Map.of("k", "a\"<b>\n")).equals("{\"k\":\"a\\\"\\u003cb>\\n\"}"), "json escaping");
 
         summarizerTests(reg);
+        regionTests(reg);
+        categoryRegressionTests(reg);
 
         System.out.println(failures == 0 ? "ALL TESTS PASSED" : failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
@@ -201,6 +203,72 @@ public final class SelfTest {
         } finally {
             srv.stop(0);
         }
+    }
+
+    private static void regionTests(SourceRegistry reg) throws Exception {
+        System.out.println("  -- regions and international outlets");
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        boolean allValid = true;
+        for (Models.Source s : reg.all()) {
+            allValid &= ids.add(s.id()) && Regions.ALL.contains(s.region())
+                && (s.feedUrl().isEmpty() || s.feedUrl().startsWith("http"));
+        }
+        check(reg.all().size() >= 85 && allValid, "registry loads " + reg.all().size() + " outlets with unique ids and valid regions");
+        check(reg.byId("reliefweb") != null && reg.byId("unnews") != null, "ReliefWeb and UN News registered");
+        check("unrated".equals(reg.byId("dawn").group()) && "Global".equals(reg.byId("reliefweb").region()), "international outlets unrated, UN feeds global");
+
+        check(Regions.eventRegion("Houthi rebels say 44 killed in airstrike near Yemeni capital Sanaa").equals(Regions.MENA), "region: Yemen -> MENA");
+        check(Regions.eventRegion("Russia launches drones at Kyiv overnight, Ukrainian officials say").equals(Regions.EURASIA), "region: Ukraine war -> Russia & Eurasia");
+        check(Regions.eventRegion("RSF fighters advance in Darfur as Sudan famine deepens").equals(Regions.SSA), "region: Sudan -> Sub-Saharan Africa");
+        check(Regions.eventRegion("Senate passes spending bill").equals(Regions.NORTH_AMERICA), "region: US domestic -> North America");
+        check(Regions.eventRegion("Local bakery wins national pastry award").equals(Regions.UNSPECIFIED), "region: no place names -> Unspecified");
+        check(Regions.eventRegion("Leaders from China, Brazil, India and France meet; Chinese, Brazilian, Indian and French envoys sign accord").equals(Regions.GLOBAL),
+              "region: many regions -> Global");
+        check(Regions.eventRegion("Niger junta expels envoy").equals(Regions.SSA) && Regions.eventRegion("Nigeria votes").equals(Regions.SSA),
+              "whole-word matching (Niger vs Nigeria)");
+
+        Instant t = Instant.now();
+        List<Models.Article> arts = List.of(
+            new Models.Article(reg.byId("nyt"), "Airstrike near Sanaa kills 44", "", "https://t.test/a", null, t),
+            new Models.Article(reg.byId("vox"), "Yemen airstrike kills dozens", "", "https://t.test/b", null, t),
+            new Models.Article(reg.byId("dawn"), "Yemen airstrike toll rises", "", "https://t.test/c", null, t),
+            new Models.Article(reg.byId("arabnews"), "Houthis report airstrike deaths", "", "https://t.test/d", null, t),
+            new Models.Article(reg.byId("reliefweb"), "Yemen: airstrike displaces families", "", "https://t.test/e", null, t));
+        Models.Story st = StoryBuilder.build(arts, null, null);
+        check(st.unrated() == 3 && st.rated() == 2 && st.sourceCount() == 5, "unrated counted separately (" + st.unrated() + " unrated, " + st.rated() + " rated)");
+        check(st.pct(st.left()) == 100, "L/C/R percentages use rated outlets only");
+        check(st.blindspot() == null, "no blindspot from fewer than 3 rated outlets");
+        check(st.eventRegion().equals(Regions.MENA), "story event region inferred (got " + st.eventRegion() + ")");
+        check(st.category().equals("Security & Conflict"), "airstrike story categorized Security & Conflict (got " + st.category() + ")");
+
+        String reply = "{\"bullets\":[{\"text\":\"An airstrike near Sanaa killed 44 people.\",\"sources\":[\"S1\",\"S2\"]},"
+            + "{\"text\":\"The Yemen airstrike toll rose.\",\"sources\":[\"S3\"]}],"
+            + "\"framing\":{\"left\":\"Reported the toll.\",\"international\":\"Regional outlets emphasized displacement.\",\"right\":\"Should be dropped.\"}}";
+        List<Models.Article> prompt = Summarizer.promptArticles(st);
+        String user = Summarizer.userPrompt(st, prompt);
+        check(user.contains("side: international") && user.contains("based in: Sub-Saharan Africa") == false && user.contains("based in: South Asia"),
+              "prompt labels international sources with their region");
+        // Order sources so S1/S2 are the NYT/Vox items for a deterministic check.
+        Summarizer sz = new Summarizer("mercury-3", (a, b) -> reply, 5, 1);
+        Summarizer.Summary sum = sz.validate(st, arts, reply);
+        check(sum != null && "Regional outlets emphasized displacement.".equals(sum.framing().get("international"))
+              && !sum.framing().containsKey("right"), "international framing kept, absent side dropped");
+    }
+
+    private static void categoryRegressionTests(SourceRegistry reg) {
+        Instant t = Instant.now();
+        java.util.function.Function<String[], String> cat = titles -> {
+            List<Models.Article> a = new ArrayList<>();
+            int i = 0;
+            for (String h : titles) a.add(new Models.Article(reg.byId(i++ % 2 == 0 ? "bbc" : "dawn"), h, h, "https://t.test/c" + i, null, t));
+            return StoryBuilder.build(a, null, null).category();
+        };
+        check(cat.apply(new String[]{"Yemen strike near Sanaa kills 44 as tensions rise", "Houthis blame Saudi Arabia for deadly strike"}).equals("Security & Conflict"),
+              "military strike not filed as Business");
+        check(cat.apply(new String[]{"China and Philippines trade accusations over South China Sea collision", "Philippines, China clash at sea"}).equals("Security & Conflict"),
+              "sea clash with 'trade accusations' filed as Security & Conflict");
+        check(cat.apply(new String[]{"Auto workers' labor strike enters third week", "Union walkout hits car plants"}).equals("Business"),
+              "labor strike still filed as Business");
     }
 
     private static void check(boolean ok, String name) {

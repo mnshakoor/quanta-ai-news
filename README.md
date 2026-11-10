@@ -1,6 +1,6 @@
 # Quanta AI News
 
-A live, full-stack news comparison app. It pulls RSS feeds from about 36 outlets across the political spectrum, groups articles about the same event into stories, and shows how each story is covered from left, center, and right. It also flags blindspots, compares headlines side by side, and reports outlet factuality and ownership.
+A live, full-stack news comparison app. It pulls RSS feeds from 86 outlets, covering the US political spectrum and eight world regions, groups articles about the same event into stories, and shows how each story is covered from left, center, and right. It also flags blindspots, compares headlines side by side, and reports outlet factuality and ownership.
 
 - **Backend:** Java 21, no external dependencies (JDK `HttpServer`, `HttpClient`, DOM XML parser).
 - **Frontend:** HTML, CSS, and vanilla JavaScript, served by the backend.
@@ -22,6 +22,22 @@ Behaviour to know:
 - **Scheduled runs pause after 60 days without repository activity** (GitHub policy for public repositories). Re-enable them from the Actions tab.
 - **Runner network:** some publishers block cloud IP ranges. Feed health for each outlet appears on the Sources page.
 - **Public republication:** the site republishes headlines and short feed summaries with links to the originals, which is standard aggregator practice. Review each publisher's feed terms if the site is used commercially.
+
+## International and regional coverage
+
+The registry includes 47 international outlets across eight regions, alongside the US outlets: Europe, Russia & Eurasia, Middle East & North Africa, Sub-Saharan Africa, South Asia, East Asia & Pacific, Latin America, and Global. The Global group covers UN News, ReliefWeb (OCHA headlines feed), International Crisis Group, Foreign Policy, War on the Rocks and Defense One. State-funded outlets such as TASS, RT, CGTN, Global Times, Press TV, teleSUR and Anadolu are included for comparison and labelled **State-Funded** under Ownership.
+
+**Unrated by design:** international outlets carry the bias value `Unrated`, because the US left/right scale does not transfer to other political systems. They count toward a story's total coverage and get their own International column, tab and AI framing line. They are excluded from the L/C/R percentages and from the blindspot and polarization rules, so those measures keep their meaning.
+
+**Regions:**
+- **Outlet region:** where the outlet is based, set in column 10 of `config/sources.tsv`.
+- **Event region:** where the story takes place, inferred from place names, demonyms and institutions by the gazetteer in `Regions.java`. A region needs at least 2 hits and a 1.5x lead over the runner-up. Stories naming several regions are `Global`; stories naming none are `Unspecified`.
+- **Where it shows:** the World page (`#/world`), the region filter on Home, and the "Coverage by outlet region" panel on each story.
+
+**Limits:**
+- Only English-language editions are ingested.
+- The gazetteer is a keyword lexicon, not entity resolution, so a shared place name can mislabel a story.
+- Feed URLs for the international outlets were not verified at commit time. Each run logs failing feeds (`[feeds] N failed: ...`), and the Sources page shows per-outlet health.
 
 ## AI summaries (Inception Mercury 3)
 

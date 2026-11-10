@@ -112,7 +112,7 @@ final class DemoData {
         }
         Models.Story st = StoryBuilder.build(arts, title, summary);
         out.add(new Models.Story("demo" + n, st.title(), st.summary(), st.category(), st.image(),
-                st.firstSeen(), st.lastUpdated(), st.articles(), st.left(), st.center(), st.right(),
-                st.sourceCount(), st.blindspot(), st.polarized(), 100 - n));
+                st.firstSeen(), st.lastUpdated(), st.articles(), st.left(), st.center(), st.right(), st.unrated(),
+                st.sourceCount(), st.blindspot(), st.polarized(), 100 - n, st.eventRegion()));
     }
 }

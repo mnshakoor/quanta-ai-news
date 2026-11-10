@@ -9,10 +9,11 @@ final class StoryBuilder {
     private StoryBuilder() {}
 
     /*
-     * Blindspot rule (documented in the Methodology view):
-     * a story is a blindspot for the right when at least 3 outlets cover it, left-leaning
-     * outlets supply at least 60 percent of coverage, and right-leaning outlets supply at
-     * most 10 percent. The mirror rule defines a blindspot for the left.
+     * Blindspot rule (documented in the Methodology view), computed over RATED outlets only:
+     * a story is a blindspot for the right when at least 3 rated outlets cover it, left-leaning
+     * outlets supply at least 60 percent of rated coverage, and right-leaning outlets supply at
+     * most 10 percent. The mirror rule defines a blindspot for the left. Unrated (international)
+     * outlets count as coverage but never enter these shares.
      */
     static final int BLINDSPOT_MIN_SOURCES = 3;
     static final double BLINDSPOT_DOMINANT = 0.60;
@@ -21,8 +22,10 @@ final class StoryBuilder {
     private static final Map<String, List<String>> CATEGORIES = new LinkedHashMap<>();
     static {
         CATEGORIES.put("Politics", List.of("trump", "biden", "congress", "senate", "house", "democrat*", "republican", "gop", "election", "vote", "voter", "campaign", "governor", "lawmaker", "white house", "speaker", "poll", "midterm", "administration", "partisan", "legislat*"));
-        CATEGORIES.put("World", List.of("ukraine", "russia", "china", "israel", "gaza", "iran", "nato", "united nations", "europe", "africa", "india", "taiwan", "korea", "syria", "sudan", "venezuela", "mexico", "ceasefire", "war", "military", "minister", "embassy", "foreign"));
-        CATEGORIES.put("Business", List.of("stock", "market", "economy", "inflation", "fed", "federal reserve", "rate", "tariff", "trade", "earnings", "company", "ceo", "bank", "jobs", "unemployment", "gdp", "price", "oil", "dollar", "strike", "merger", "wall street"));
+        CATEGORIES.put("Security & Conflict", List.of("war", "military", "missile*", "airstrike*", "air strike*", "drone*", "troops", "army", "soldier*", "ceasefire", "truce", "shelling", "offensive", "insurgent*", "militant*", "rebel*", "jihadist*", "terror*", "bomb*", "attack", "attacks", "killed", "nuclear", "weapons", "navy", "warship*", "frontline", "hostage*", "coup", "airstrike", "strike", "strikes", "clash*", "collision", "coast guard", "fired", "exchange fire", "skirmish*", "invasion"));
+        CATEGORIES.put("Diplomacy", List.of("diplomat*", "diplomacy", "minister", "embassy", "foreign ministry", "foreign minister", "summit", "talks", "treaty", "sanction*", "united nations", "security council", "envoy", "bilateral", "ambassador", "negotiation*", "accord", "g7", "g20", "brics", "nato"));
+        CATEGORIES.put("Humanitarian", List.of("humanitarian", "refugee*", "displaced", "famine", "hunger", "aid", "relief", "unhcr", "unicef", "ocha", "wfp", "cholera", "evacuat*", "civilians", "shelter*", "malnutrition"));
+        CATEGORIES.put("Business", List.of("stock", "market", "economy", "inflation", "fed", "federal reserve", "rate", "tariff", "trade", "earnings", "company", "ceo", "bank", "jobs", "unemployment", "gdp", "price", "oil", "dollar", "labor strike", "walkout", "union", "merger", "wall street", "peso", "currency", "rally", "budget"));
         CATEGORIES.put("Technology", List.of("ai", "artificial intelligence", "tech", "apple", "google", "microsoft", "meta", "openai", "chip", "software", "cyber", "hack", "data", "app", "tesla", "musk", "crypto", "bitcoin", "privacy", "robot"));
         CATEGORIES.put("Health", List.of("health", "vaccin*", "covid", "virus", "disease", "cancer", "drug", "fda", "cdc", "hospital", "medical", "patient", "measles", "outbreak", "medicaid", "medicare"));
         CATEGORIES.put("Environment", List.of("climate", "wildfire", "hurricane", "storm", "flood", "earthquake", "weather", "heat", "emission", "environment", "drought", "tornado", "snow", "energy"));
@@ -40,22 +43,24 @@ final class StoryBuilder {
         // Count distinct outlets per side; an outlet with several articles counts once.
         Map<String, Models.Source> outlets = new LinkedHashMap<>();
         arts.forEach(a -> outlets.putIfAbsent(a.source().id(), a.source()));
-        int l = 0, c = 0, r = 0;
+        int l = 0, c = 0, r = 0, u = 0;
         for (Models.Source s : outlets.values()) {
             switch (s.group()) {
                 case "left" -> l++;
                 case "right" -> r++;
+                case "unrated" -> u++;
                 default -> c++;
             }
         }
         int total = outlets.size();
+        int rated = l + c + r;
         String blindspot = null;
-        if (total >= BLINDSPOT_MIN_SOURCES) {
-            double L = (double) l / total, R = (double) r / total;
+        if (rated >= BLINDSPOT_MIN_SOURCES) {
+            double L = (double) l / rated, R = (double) r / rated;
             if (L >= BLINDSPOT_DOMINANT && R <= BLINDSPOT_ABSENT) blindspot = "right";
             else if (R >= BLINDSPOT_DOMINANT && L <= BLINDSPOT_ABSENT) blindspot = "left";
         }
-        boolean polarized = total >= 4 && (double) c / total < 0.25 && l >= 2 && r >= 2;
+        boolean polarized = rated >= 4 && (double) c / rated < 0.25 && l >= 2 && r >= 2;
 
         Models.Article lead = pickLead(arts);
         String title = titleOverride != null ? titleOverride : lead.title();
@@ -66,12 +71,14 @@ final class StoryBuilder {
         Instant first = arts.get(0).published();
         Instant last = arts.get(arts.size() - 1).published();
         double ageHours = Math.max(0, Duration.between(last, Instant.now()).toMinutes() / 60.0);
-        double balance = 1.0 + 0.15 * (Math.min(l, 1) + Math.min(c, 1) + Math.min(r, 1));
+        long outletRegions = outlets.values().stream().map(Models.Source::region).distinct().count();
+        double balance = 1.0 + 0.15 * (Math.min(l, 1) + Math.min(c, 1) + Math.min(r, 1))
+                + 0.1 * Math.min(Math.max(0, outletRegions - 1), 3);   // reward cross-regional coverage
         double score = total * balance / Math.pow(ageHours + 2, 0.8);
 
         String id = Integer.toHexString((arts.get(0).link() + arts.get(0).source().id()).hashCode() & 0x7fffffff);
         return new Models.Story(id, title, summary, categorize(arts), image, first, last,
-                List.copyOf(arts), l, c, r, total, blindspot, polarized, score);
+                List.copyOf(arts), l, c, r, u, total, blindspot, polarized, score, Regions.eventRegion(arts));
     }
 
     /** Prefers a center outlet headline, then the article whose terms best represent the cluster. */

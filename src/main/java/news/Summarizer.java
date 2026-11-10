@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * so unchanged stories are never re-summarized.
  */
 final class Summarizer {
-    static final String PROMPT_VERSION = "v1";
+    static final String PROMPT_VERSION = "v2";
     private static final Pattern NUMBER = Pattern.compile("\\d[\\d,]*(?:\\.\\d+)?");
     private static final int MAX_SOURCES_IN_PROMPT = 14;
 
@@ -138,10 +138,12 @@ final class Summarizer {
 
             Return ONLY a JSON object, no prose, in this shape:
             {"bullets":[{"text":"...","sources":["S1","S3"]}],
-             "framing":{"left":"...","center":"...","right":"..."}}
+             "framing":{"left":"...","center":"...","right":"...","international":"..."}}
             - 3 to 5 bullets, each one sentence of at most 40 words.
             - "framing": one short sentence per side describing how that side's sources framed the story,
               included only for sides marked as having sources. Omit sides with no sources.
+              "left", "center" and "right" refer to US outlets; "international" covers outlets based outside
+              the US political spectrum. When international sources differ by country of origin, say so.
             """;
     }
 
@@ -150,7 +152,8 @@ final class Summarizer {
         int n = 1;
         for (Models.Article a : arts) {
             sb.append("S").append(n++).append(" | ").append(a.source().name())
-              .append(" | side: ").append(a.source().group())
+              .append(" | side: ").append(side(a.source()))
+              .append(" | based in: ").append(a.source().region())
               .append("\nHeadline: ").append(a.title());
             if (!a.description().isBlank() && !a.description().equals(a.title())) {
                 sb.append("\nExcerpt: ").append(a.description());
@@ -173,10 +176,17 @@ final class Summarizer {
 
     private static List<String> sidesPresent(List<Models.Article> arts) {
         Set<String> sides = new LinkedHashSet<>();
-        for (String g : List.of("left", "center", "right")) {
-            for (Models.Article a : arts) if (g.equals(a.source().group())) sides.add(g);
+        for (String g : SIDES) {
+            for (Models.Article a : arts) if (g.equals(side(a.source()))) sides.add(g);
         }
         return new ArrayList<>(sides);
+    }
+
+    /** Framing sides: the US left/center/right groups plus "international" for unrated outlets. */
+    static final List<String> SIDES = List.of("left", "center", "right", "international");
+
+    static String side(Models.Source s) {
+        return "unrated".equals(s.group()) ? "international" : s.group();
     }
 
     // ------------------------------------------------------------------ validation
@@ -206,9 +216,9 @@ final class Summarizer {
 
         Map<String, String> framing = new LinkedHashMap<>();
         Map<String, Object> f = MiniJson.cast(obj.get("framing"));
-        for (String side : List.of("left", "center", "right")) {
+        for (String side : SIDES) {
             String t = clean(MiniJson.str(f.get(side)));
-            List<Models.Article> sideArts = arts.stream().filter(a -> side.equals(a.source().group())).toList();
+            List<Models.Article> sideArts = arts.stream().filter(a -> side.equals(side(a.source()))).toList();
             if (!t.isEmpty() && t.length() <= 300 && !sideArts.isEmpty() && numbersSupported(t, sideArts)) {
                 framing.put(side, t);
             }

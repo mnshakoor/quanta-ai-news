@@ -47,6 +47,16 @@ final class Views {
         cov.put("right", Math.round(100.0 * r / t));
         m.put("coverage", cov);
         m.put("categories", cats);
+        Map<String, Integer> regions = new LinkedHashMap<>();
+        for (String rg : Regions.ALL) regions.put(rg, 0);
+        regions.put(Regions.UNSPECIFIED, 0);
+        snap.stories().forEach(s -> regions.merge(s.eventRegion(), 1, Integer::sum));
+        m.put("regions", regions);
+        Map<String, Integer> outletRegions = new LinkedHashMap<>();
+        for (String rg : Regions.ALL) outletRegions.put(rg, 0);
+        registry.all().forEach(s -> outletRegions.merge(s.region(), 1, Integer::sum));
+        m.put("outletRegions", outletRegions);
+        m.put("unratedOutlets", registry.all().stream().filter(s -> s.group().equals("unrated")).count());
         m.put("summaryCount", snap.summaries().size());
         m.put("summaryModel", snap.summaries().values().stream().map(Summarizer.Summary::model).findFirst().orElse(null));
         String report = System.getenv("REPORT_URL");
@@ -62,6 +72,7 @@ final class Views {
         String view = q.getOrDefault("view", "top");
         String bias = q.getOrDefault("bias", "all");
         String category = q.getOrDefault("category", "");
+        String region = q.getOrDefault("region", "");
         String text = q.getOrDefault("q", "").toLowerCase(Locale.ROOT).trim();
         String ids = q.getOrDefault("ids", "");
         int limit = Math.min(200, Math.max(1, parseInt(q.get("limit"), 60)));
@@ -77,8 +88,10 @@ final class Views {
         if (view.equals("latest")) stream = stream.sorted(Comparator.comparing(Models.Story::lastUpdated).reversed());
         if (!bias.equals("all")) stream = stream.filter(s -> switch (bias) {
             case "left" -> s.left() > 0; case "right" -> s.right() > 0; case "center" -> s.center() > 0;
+            case "unrated" -> s.unrated() > 0;
             default -> true; });
         if (!category.isEmpty()) stream = stream.filter(s -> s.category().equalsIgnoreCase(category));
+        if (!region.isEmpty()) stream = stream.filter(s -> s.eventRegion().equalsIgnoreCase(region));
         if (!text.isEmpty()) stream = stream.filter(s -> (s.title() + " " + s.summary() + " "
                 + s.articles().stream().map(a -> a.title() + " " + a.source().name()).collect(Collectors.joining(" ")))
                 .toLowerCase(Locale.ROOT).contains(text));
@@ -98,7 +111,14 @@ final class Views {
         m.put("lastUpdated", s.lastUpdated());
         m.put("sourceCount", s.sourceCount());
         m.put("articleCount", s.articles().size());
-        m.put("counts", Map.of("left", s.left(), "center", s.center(), "right", s.right()));
+        m.put("counts", Map.of("left", s.left(), "center", s.center(), "right", s.right(), "unrated", s.unrated()));
+        m.put("eventRegion", s.eventRegion());
+        Map<String, Integer> byRegion = new TreeMap<>();
+        Set<String> regionSeen = new HashSet<>();
+        for (Models.Article a : s.articles()) {
+            if (regionSeen.add(a.source().id())) byRegion.merge(a.source().region(), 1, Integer::sum);
+        }
+        m.put("outletRegions", byRegion);
         m.put("pct", Map.of("left", s.pct(s.left()), "center", s.pct(s.center()), "right", s.pct(s.right())));
         m.put("blindspot", s.blindspot());
         m.put("polarized", s.polarized());
@@ -115,10 +135,10 @@ final class Views {
     Map<String, Object> storyDetail(Models.Story s) {
         Map<String, Object> m = storySummary(s);
         Map<String, Integer> fact = new LinkedHashMap<>();
-        for (String f : List.of("High", "Mixed", "Low")) fact.put(f, 0);
+        for (String f : List.of("High", "Mixed", "Low", "Unrated")) fact.put(f, 0);
         Map<String, Integer> own = new TreeMap<>();
         Map<String, Integer> five = new LinkedHashMap<>();
-        for (String b : List.of("Left", "Lean Left", "Center", "Lean Right", "Right")) five.put(b, 0);
+        for (String b : List.of("Left", "Lean Left", "Center", "Lean Right", "Right", "Unrated")) five.put(b, 0);
         Set<String> seen = new HashSet<>();
         List<Object> arts = new ArrayList<>();
         for (Models.Article a : s.articles()) {
@@ -163,8 +183,9 @@ final class Views {
             list.add(m);
         }
         return Map.of("items", list, "provenance",
-                "Bias and factuality ratings are provisional seeds approximated from public aggregate rating "
-              + "charts (AllSides, Ad Fontes Media, Media Bias/Fact Check). Verify before analytic or published use.");
+                "Bias and factuality ratings for US-scale outlets are provisional seeds approximated from public aggregate "
+              + "rating charts (AllSides, Ad Fontes Media, Media Bias/Fact Check). International outlets are deliberately "
+              + "Unrated: the US left/right scale does not transfer to other political systems. Verify before analytic or published use.");
     }
 
     static Map<String, Object> sourceMap(Models.Source s, Models.FeedStatus st) {
@@ -177,6 +198,7 @@ final class Views {
         m.put("ownership", s.ownership());
         m.put("owner", s.owner());
         m.put("country", s.country());
+        m.put("region", s.region());
         m.put("homepage", s.homepage());
         m.put("live", s.fetchable());
         if (st != null) {

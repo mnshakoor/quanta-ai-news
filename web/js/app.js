@@ -8,7 +8,9 @@
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const safeUrl = (u) => { try { const x = new URL(u, location.href); return /^https?:$/.test(x.protocol) ? x.href : '#'; } catch { return '#'; } };
   const cssUrl = (u) => `url("${safeUrl(u).replace(/["\\\n\r]/g, '')}")`;
-  const BIAS_COLOR = { 'Left': 'var(--left)', 'Lean Left': 'var(--lean-left)', 'Center': 'var(--center)', 'Lean Right': 'var(--lean-right)', 'Right': 'var(--right)' };
+  const BIAS_COLOR = { 'Left': 'var(--left)', 'Lean Left': 'var(--lean-left)', 'Center': 'var(--center)', 'Lean Right': 'var(--lean-right)', 'Right': 'var(--right)', 'Unrated': 'var(--intl)' };
+  const REGIONS = ['North America', 'Latin America', 'Europe', 'Russia & Eurasia', 'Middle East & North Africa', 'Sub-Saharan Africa', 'South Asia', 'East Asia & Pacific', 'Global'];
+  const groupOfBias = (b) => (b === 'Left' || b === 'Lean Left') ? 'left' : (b === 'Right' || b === 'Lean Right') ? 'right' : b === 'Unrated' ? 'unrated' : 'center';
   const pillClass = (b) => 'pill pill-' + String(b).replace(/\s+/g, '-');
   const initials = (n) => n.replace(/^The\s+/i, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -71,6 +73,8 @@
     if (view === 'latest') list.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
     if (bias !== 'all') list = list.filter((s) => s.counts[bias] > 0);
     if (cat) list = list.filter((s) => s.category.toLowerCase() === cat);
+    const region = (q.get('region') || '').toLowerCase();
+    if (region) list = list.filter((s) => (s.eventRegion || '').toLowerCase() === region);
     if (text) list = list.filter((s) => (s.title + ' ' + s.summary + ' ' + s.outlets.map((o) => o.name).join(' ')).toLowerCase().includes(text));
     return { total: list.length, items: list.slice(0, limit) };
   }
@@ -90,7 +94,7 @@
   };
 
   // ---------------------------------------------------------------- app state
-  const state = { meta: null, category: '', sort: 'top', bias: 'all', lastRefreshSeen: null };
+  const state = { meta: null, category: '', region: '', sort: 'top', bias: 'all', lastRefreshSeen: null };
   const saved = () => new Set(store.get('saved', []));
   function toggleSaved(id) {
     const s = saved();
@@ -101,6 +105,9 @@
 
   // ---------------------------------------------------------------- shared renderers
   function biasBar(p, large) {
+    if (p.left + p.center + p.right === 0) {
+      return `<div class="bias-bar${large ? ' lg' : ''}" role="img" aria-label="International outlets only, not rated on the US scale"><span class="u" style="width:100%">${large ? 'International only' : ''}</span></div>`;
+    }
     const seg = (cls, v, label) => v > 0 ? `<span class="${cls}" style="width:${v}%">${large && v >= 9 ? label + ' ' + v + '%' : ''}</span>` : '';
     return `<div class="bias-bar${large ? ' lg' : ''}" role="img" aria-label="Coverage: ${p.left}% left, ${p.center}% center, ${p.right}% right">
       ${seg('l', p.left, 'L')}${seg('c', p.center, 'C')}${seg('r', p.right, 'R')}</div>`;
@@ -108,6 +115,7 @@
 
   function tags(s) {
     let h = '';
+    if (s.eventRegion && s.eventRegion !== 'Unspecified') h += `<span class="tag tag-region" title="Where the events take place (inferred from place names)">${esc(s.eventRegion)}</span>`;
     if (s.blindspot) h += `<span class="tag tag-blind" title="Blindspot rule: see Method">${ICON.eye}Blindspot: ${s.blindspot === 'right' ? 'Right' : 'Left'}</span>`;
     if (s.polarized) h += `<span class="tag tag-pol">${ICON.flame}Polarized</span>`;
     if (s.hasSummary) h += '<span class="tag tag-ai" title="Has an AI summary">AI</span>';
@@ -131,6 +139,14 @@
     return list + more;
   }
 
+  // Legend under a coverage bar: L/C/R shares of rated (US-scale) outlets, plus the unrated international count.
+  function legend(s, long) {
+    const rated = s.counts.left + s.counts.center + s.counts.right;
+    const intl = s.counts.unrated ? `<span class="i" title="International outlets are not rated on the US left/right scale">+${s.counts.unrated} intl</span>` : '';
+    if (!rated) return `<div class="bias-legend"><span class="i">${s.counts.unrated} international outlets · not on US scale</span></div>`;
+    return `<div class="bias-legend"><span class="l">${long ? 'Left' : 'L'} ${s.pct.left}%</span><span class="c">${long ? 'Center' : 'C'} ${s.pct.center}%</span>${intl}<span class="r">${long ? 'Right' : 'R'} ${s.pct.right}%</span></div>`;
+  }
+
   function storyCard(s) {
     return `<article class="card story">
       <div>
@@ -138,7 +154,7 @@
         <h2><a href="#/story/${esc(s.id)}">${esc(s.title)}</a></h2>
         <p class="summary">${esc(s.summary)}</p>
         ${biasBar(s.pct)}
-        <div class="bias-legend"><span class="l">L ${s.pct.left}%</span><span class="c">C ${s.pct.center}%</span><span class="r">R ${s.pct.right}%</span></div>
+        ${legend(s)}
         <div class="foot-row"><div class="outlets">${outletChips(s, 4)}</div>
           <div class="meta-row"><b>${s.sourceCount} sources</b>${saveBtn(s.id)}</div></div>
       </div>
@@ -154,7 +170,7 @@
         <h2><a href="#/story/${esc(s.id)}">${esc(s.title)}</a></h2>
         <p class="summary">${esc(s.summary)}</p>
         <div style="margin-top:auto">${biasBar(s.pct)}
-          <div class="bias-legend"><span class="l">Left ${s.pct.left}%</span><span class="c">Center ${s.pct.center}%</span><span class="r">Right ${s.pct.right}%</span></div></div>
+          ${legend(s, true)}</div>
         <div class="foot-row"><div class="outlets">${outletChips(s, 4)}</div><div class="meta-row"><b>${s.sourceCount} sources</b>${saveBtn(s.id)}</div></div>
       </div>
     </article>`;
@@ -203,6 +219,7 @@
   function storyQuery(extra = {}) {
     const p = new URLSearchParams({ view: state.sort, bias: state.bias, limit: '80', ...extra });
     if (state.category) p.set('category', state.category);
+    if (state.region) p.set('region', state.region);
     return '/stories?' + p.toString();
   }
 
@@ -210,11 +227,36 @@
     const sortBtn = (v, l) => `<button data-sort="${v}" class="${state.sort === v ? 'on' : ''}">${l}</button>`;
     const biasBtn = (v, l, c) => `<button data-bias="${v}" class="${state.bias === v ? 'on' : ''}">${c ? `<span class="sw" style="background:${c}"></span>` : ''}${l}</button>`;
     return `<div class="section-head">
-      <div class="section-title">${state.category ? esc(state.category) : 'Top stories'}</div>
+      <div class="section-title">${[state.region, state.category].filter(Boolean).map(esc).join(' · ') || 'Top stories'}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select class="input select" id="regionSel" aria-label="Region">${['', ...REGIONS, 'Unspecified'].map((r) => `<option value="${esc(r)}"${state.region === r ? ' selected' : ''}>${r ? esc(r) + ' (' + (state.meta?.regions?.[r] ?? 0) + ')' : 'All regions'}</option>`).join('')}</select>
         <div class="seg" role="group" aria-label="Sort">${sortBtn('top', 'Top')}${sortBtn('latest', 'Latest')}${sortBtn('polarized', 'Polarized')}</div>
-        <div class="seg" role="group" aria-label="Covered by">${biasBtn('all', 'All')}${biasBtn('left', 'Left', 'var(--left)')}${biasBtn('center', 'Center', 'var(--center)')}${biasBtn('right', 'Right', 'var(--right)')}</div>
+        <div class="seg" role="group" aria-label="Covered by">${biasBtn('all', 'All')}${biasBtn('left', 'Left', 'var(--left)')}${biasBtn('center', 'Center', 'var(--center)')}${biasBtn('right', 'Right', 'var(--right)')}${biasBtn('unrated', 'Intl', 'var(--intl)')}</div>
       </div></div>`;
+  }
+
+  function regionsCard(m) {
+    const r = m.regions || {};
+    const max = Math.max(1, ...REGIONS.map((k) => r[k] || 0));
+    return `<div class="card card-pad"><h3 style="display:flex;justify-content:space-between">Stories by region <a href="#/world" style="font-size:12px;color:var(--accent)">World view</a></h3>
+      ${REGIONS.map((k) => `<button class="hbar hbar-btn" data-region="${esc(k)}"><span>${esc(k)}</span><div class="track"><span style="width:${100 * (r[k] || 0) / max}%"></span></div><span class="n">${r[k] || 0}</span></button>`).join('')}
+      <p class="muted" style="font-size:12px;margin:8px 0 0">Where events take place, inferred from place names in headlines.</p></div>`;
+  }
+
+  async function viewWorld() {
+    view.innerHTML = `<h1 class="page-title">World</h1><p class="page-lede">Top stories in each region, ranked by breadth of coverage. Regions are inferred from place names in headlines and excerpts.</p>${skeleton(3)}`;
+    try {
+      const lists = await Promise.all(REGIONS.map((r) => api('/stories?view=top&limit=4&region=' + encodeURIComponent(r))));
+      const m = state.meta || {};
+      const outletR = m.outletRegions || {};
+      view.innerHTML = `<h1 class="page-title">World</h1>
+        <p class="page-lede">Top stories in each region, ranked by breadth of coverage. Regions are inferred from place names in headlines and excerpts. ${m.unratedOutlets ?? 0} of ${m.sourceCount ?? 0} outlets are international and unrated on the US left/right scale.</p>
+        <div class="world-grid">${REGIONS.map((r, i) => `<section class="card card-pad world-cell">
+          <div class="world-head"><h2>${esc(r)}</h2><button class="btn btn-small" data-region="${esc(r)}">${lists[i].total} ${lists[i].total === 1 ? 'story' : 'stories'}</button></div>
+          <div class="muted" style="font-size:12px;margin-bottom:6px">${outletR[r] ?? 0} outlets based here</div>
+          ${lists[i].items.length ? lists[i].items.map(miniStory).join('') : '<p class="muted" style="font-size:13px;margin:0">No multi-outlet stories right now.</p>'}
+        </section>`).join('')}</div>`;
+    } catch (e) { view.innerHTML = errorBox(e); }
   }
 
   async function viewHome() {
@@ -244,6 +286,7 @@
           <div class="card card-pad"><h3 style="display:flex;justify-content:space-between">Blindspot <a href="#/blindspot" style="font-size:12px;color:var(--accent)">See all</a></h3>
             ${blind.items.length ? blind.items.map(miniStory).join('') : '<p class="muted" style="font-size:13px;margin:0">No stories currently meet the blindspot rule.</p>'}
           </div>
+          ${regionsCard(m)}
           ${miniBiasCard()}
         </aside></div>`;
     } catch (e) { view.innerHTML = errorBox(e); }
@@ -271,7 +314,7 @@
     const a = s.aiSummary;
     if (!a || !a.bullets || !a.bullets.length) return '';
     const chip = (o) => `<span class="chip" title="${esc(o.bias)}"><span class="sw" style="background:${BIAS_COLOR[o.bias] || 'var(--muted)'}"></span>${esc(o.name)}</span>`;
-    const sideLabel = { left: 'Left', center: 'Center', right: 'Right' };
+    const sideLabel = { left: 'Left', center: 'Center', right: 'Right', international: 'International' };
     const framing = Object.entries(a.framing || {}).filter(([k, v]) => sideLabel[k] && v);
     const report = state.meta?.reportUrl
       ? `<a class="ai-report" target="_blank" rel="noopener noreferrer" href="${esc(state.meta.reportUrl + '?title=' + encodeURIComponent('Summary issue: ' + s.title.slice(0, 120)) + '&body=' + encodeURIComponent('Story: ' + location.href + '\n\nWhat is wrong:\n'))}">Report a problem</a>` : '';
@@ -295,7 +338,7 @@
     recordRead(s);
     document.title = s.title + ' | Quanta AI News';
     const tab = { cur: 'all' };
-    const groupOf = (b) => (b === 'Left' || b === 'Lean Left') ? 'left' : (b === 'Right' || b === 'Lean Right') ? 'right' : 'center';
+    const groupOf = groupOfBias;
     const firstBy = (g) => s.articles.find((a) => groupOf(a.source.bias) === g);
     const compareCol = (g, label) => {
       const a = firstBy(g);
@@ -319,7 +362,9 @@
           ${a.description && a.description !== a.title ? `<p>${esc(a.description)}</p>` : ''}
           <div class="muted" style="font-size:12px;margin-top:4px">Owner: ${esc(a.source.owner)} (${esc(a.source.ownership)})</div></div></div>`).join('');
     };
-    const counts = { all: s.articles.length, left: 0, center: 0, right: 0 };
+    const counts = { all: s.articles.length, left: 0, center: 0, right: 0, unrated: 0 };
+    const tabLabel = { all: 'All', left: 'Left', center: 'Center', right: 'Right', unrated: 'International' };
+    const maxReg = Math.max(1, ...Object.values(s.outletRegions || {}));
     s.articles.forEach((a) => counts[groupOf(a.source.bias)]++);
 
     const render = () => {
@@ -338,28 +383,33 @@
         ${s.image ? `<div class="hero-img" style="background-image:${esc(cssUrl(s.image))}"></div>` : ''}
         ${s.blindspot ? `<div class="blind-callout">${ICON.eye}<div><b>Blindspot for the ${s.blindspot === 'right' ? 'Right' : 'Left'}.</b> ${s.blindspot === 'right' ? 'Right-leaning' : 'Left-leaning'} outlets account for little or none of the coverage of this story, so readers who rely on them may not see it.</div></div>` : ''}
         <div class="section-head"><div class="section-title">Compare headlines</div></div>
-        <div class="compare">${compareCol('left', 'Left')}${compareCol('center', 'Center')}${compareCol('right', 'Right')}</div>
+        <div class="compare${counts.unrated ? ' four' : ''}">${compareCol('left', 'Left')}${compareCol('center', 'Center')}${compareCol('right', 'Right')}${counts.unrated ? compareCol('unrated', 'International') : ''}</div>
         <div class="section-head"><div class="section-title">Full coverage · ${s.articleCount} articles</div></div>
-        <div class="tabs" role="tablist">${['all', 'left', 'center', 'right'].map((k) => `<button role="tab" data-tab="${k}" class="${tab.cur === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)} (${counts[k]})</button>`).join('')}</div>
+        <div class="tabs" role="tablist">${['all', 'left', 'center', 'right', 'unrated'].filter((k) => k !== 'unrated' || counts.unrated).map((k) => `<button role="tab" data-tab="${k}" class="${tab.cur === k ? 'on' : ''}">${tabLabel[k]} (${counts[k]})</button>`).join('')}</div>
         <div id="articles">${articleRows(tab.cur)}</div>
       </article>
       <aside class="rail">
         <div class="card card-pad"><h3>Bias distribution</h3>${biasBar(s.pct, true)}
           <div class="five" style="margin-top:12px" aria-label="Five-point distribution">${five.filter(([, n]) => n).map(([b, n]) => `<span style="width:${100 * n / fiveTotal}%;background:${BIAS_COLOR[b]}" title="${esc(b)}: ${n}"></span>`).join('')}</div>
-          <div style="margin-top:10px">${five.map(([b, n]) => `<div class="kv"><span><span class="${pillClass(b)}">${esc(b)}</span></span><b>${n}</b></div>`).join('')}</div>
+          ${s.counts.unrated ? `<p class="muted" style="font-size:12px;margin:10px 0 0">Bar shows the ${s.counts.left + s.counts.center + s.counts.right} US-scale outlets. ${s.counts.unrated} international outlets are unrated and excluded from it.</p>` : ''}
+          <div style="margin-top:10px">${five.filter(([b, n]) => b !== 'Unrated' || n).map(([b, n]) => `<div class="kv"><span><span class="${pillClass(b)}">${esc(b)}</span></span><b>${n}</b></div>`).join('')}</div>
         </div>
         <div class="card card-pad"><h3>Coverage details</h3>
           <div class="kv"><span>Total sources</span><b>${s.sourceCount}</b></div>
           <div class="kv"><span>Leaning left</span><b style="color:var(--left)">${s.counts.left}</b></div>
           <div class="kv"><span>Center</span><b style="color:var(--center)">${s.counts.center}</b></div>
           <div class="kv"><span>Leaning right</span><b style="color:var(--right)">${s.counts.right}</b></div>
+          <div class="kv"><span>International (unrated)</span><b style="color:var(--intl)">${s.counts.unrated}</b></div>
+          <div class="kv"><span>Event region</span><b>${esc(s.eventRegion)}</b></div>
           <div class="kv"><span>First reported by</span><b>${esc(s.firstReportedBy.name)}<br><span class="muted" style="font-weight:500;font-size:12px">${ago(s.firstReportedBy.at)}</span></b></div>
           <div class="kv"><span>Last updated</span><b>${ago(s.lastUpdated)}</b></div>
         </div>
         <div class="card card-pad"><h3>Factuality of sources</h3>
-          <div class="five">${Object.entries(s.factuality).filter(([, n]) => n).map(([f, n]) => `<span style="width:${100 * n / factTotal}%;background:var(--${f === 'High' ? 'good' : f === 'Mixed' ? 'warn' : 'bad'})" title="${esc(f)}: ${n}"></span>`).join('')}</div>
+          <div class="five">${Object.entries(s.factuality).filter(([, n]) => n).map(([f, n]) => `<span style="width:${100 * n / factTotal}%;background:var(--${f === 'High' ? 'good' : f === 'Mixed' ? 'warn' : f === 'Low' ? 'bad' : 'muted'})" title="${esc(f)}: ${n}"></span>`).join('')}</div>
           <div style="margin-top:10px">${Object.entries(s.factuality).map(([f, n]) => `<div class="kv"><span class="fact fact-${esc(f)}">${esc(f)}</span><b>${n}</b></div>`).join('')}</div>
         </div>
+        <div class="card card-pad"><h3>Coverage by outlet region</h3>${Object.entries(s.outletRegions || {}).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<div class="hbar"><span>${esc(r)}</span><div class="track"><span style="width:${100 * n / maxReg}%"></span></div><span class="n">${n}</span></div>`).join('')}
+          <p class="muted" style="font-size:12px;margin:8px 0 0">Where the reporting outlets are based.</p></div>
         <div class="card card-pad"><h3>Ownership</h3>${Object.entries(s.ownership).sort((a, b) => b[1] - a[1]).map(([o, n]) => `<div class="hbar"><span>${esc(o)}</span><div class="track"><span style="width:${100 * n / maxOwn}%"></span></div><span class="n">${n}</span></div>`).join('')}</div>
       </aside></div>`;
     };
@@ -379,10 +429,10 @@
     view.innerHTML = `<h1 class="page-title">Sources</h1>${skeleton(2)}`;
     let data;
     try { data = await api('/sources'); } catch (e) { view.innerHTML = errorBox(e); return; }
-    const st = { q: '', bias: 'all', sort: 'name', dir: 1 };
-    const order = { 'Left': 0, 'Lean Left': 1, 'Center': 2, 'Lean Right': 3, 'Right': 4, 'High': 0, 'Mixed': 1, 'Low': 2 };
+    const st = { q: '', bias: 'all', region: '', sort: 'name', dir: 1 };
+    const order = { 'Left': 0, 'Lean Left': 1, 'Center': 2, 'Lean Right': 3, 'Right': 4, 'Unrated': 5, 'High': 0, 'Mixed': 1, 'Low': 2 };
     const draw = () => {
-      let rows = data.items.filter((s) => (st.bias === 'all' || s.group === st.bias) &&
+      let rows = data.items.filter((s) => (st.bias === 'all' || s.group === st.bias) && (!st.region || s.region === st.region) &&
         (s.name + ' ' + s.owner).toLowerCase().includes(st.q.toLowerCase()));
       rows.sort((a, b) => {
         const x = a[st.sort], y = b[st.sort];
@@ -394,7 +444,7 @@
         <td><span class="${pillClass(s.bias)}">${esc(s.bias)}</span></td>
         <td><span class="fact fact-${esc(s.factuality)}">${esc(s.factuality)}</span></td>
         <td>${esc(s.ownership)}<div class="muted" style="font-size:12px">${esc(s.owner)}</div></td>
-        <td>${esc(s.country)}</td>
+        <td>${esc(s.region)}<div class="muted" style="font-size:12px">${esc(s.country)}</div></td>
         <td>${!s.live ? '<span class="muted">Not polled</span>' : s.feedOk === undefined ? '<span class="muted">Pending</span>'
           : s.feedOk ? `<span class="feed-dot ok"></span>${s.feedArticles} items` : `<span class="feed-dot err"></span><span title="${esc(s.feedError)}">Error</span>`}</td>
         <td class="num">${s.storyCount}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No outlets match.</td></tr>';
@@ -405,10 +455,12 @@
       <p class="page-lede">Every outlet in the registry, its rating, ownership, and live feed health. Ratings live in <code>config/sources.tsv</code> and can be edited.</p>
       <div class="note" style="margin-bottom:18px">${esc(data.provenance)}</div>
       <div class="toolbar"><input class="input" id="srcQ" placeholder="Filter outlets or owners" aria-label="Filter outlets">
-        <div class="seg" id="srcBias">${['all', 'left', 'center', 'right'].map((b) => `<button data-b="${b}" class="${b === 'all' ? 'on' : ''}">${b[0].toUpperCase() + b.slice(1)}</button>`).join('')}</div>
+        <div class="seg" id="srcBias">${[['all', 'All'], ['left', 'Left'], ['center', 'Center'], ['right', 'Right'], ['unrated', 'Unrated']].map(([b, l]) => `<button data-b="${b}" class="${b === 'all' ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <select class="input select" id="srcRegion" aria-label="Outlet region"><option value="">All regions</option>${REGIONS.map((r) => `<option>${esc(r)}</option>`).join('')}</select>
         <span class="muted" id="srcCount" style="font-size:13px"></span></div>
-      <div class="card table-wrap"><table><thead><tr>${th('name', 'Outlet')}${th('bias', 'Bias')}${th('factuality', 'Factuality')}${th('ownership', 'Ownership')}${th('country', 'Country')}${th('feedArticles', 'Feed')}${th('storyCount', 'Stories')}</tr></thead><tbody id="srcBody"></tbody></table></div>`;
+      <div class="card table-wrap"><table><thead><tr>${th('name', 'Outlet')}${th('bias', 'Bias')}${th('factuality', 'Factuality')}${th('ownership', 'Ownership')}${th('region', 'Region')}${th('feedArticles', 'Feed')}${th('storyCount', 'Stories')}</tr></thead><tbody id="srcBody"></tbody></table></div>`;
     $('#srcQ').oninput = (e) => { st.q = e.target.value; draw(); };
+    $('#srcRegion').onchange = (e) => { st.region = e.target.value; draw(); };
     $('#srcBias').onclick = (e) => { const b = e.target.closest('[data-b]'); if (!b) return; st.bias = b.dataset.b; $('#srcBias').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); draw(); };
     view.querySelector('thead').onclick = (e) => { const h = e.target.closest('[data-k]'); if (!h) return; st.dir = st.sort === h.dataset.k ? -st.dir : 1; st.sort = h.dataset.k; draw(); };
     draw();
@@ -495,10 +547,13 @@
       <h2>5. AI summaries</h2>
       <p>${state.meta?.summaryCount ? `${state.meta.summaryCount} stories currently carry an AI summary generated by <code>${esc(state.meta.summaryModel || '')}</code>.` : 'AI summaries appear when the build is configured with a model API key.'}
       The model receives only the headlines and feed excerpts in the story, labelled by source, and must cite those labels on every bullet. Before publishing, each bullet is checked automatically: it must cite at least one real source, and every number it contains must appear in the text of the sources it cites. Bullets that fail are removed, and a summary with fewer than two remaining bullets is not shown. Summaries attribute claims to their sources and are not independent verification. Unchanged stories reuse their earlier summary.</p>
-      <h2>6. Ratings and their limits</h2>
+      <h2>6. International coverage and regions</h2>
+      <p>${state.meta?.unratedOutlets ?? 0} outlets are based outside the US political spectrum, including regional broadcasters, state-funded media (labelled as such in Ownership), and the UN's own news services (UN News and ReliefWeb). They are deliberately <b>Unrated</b>: the US left/right scale does not transfer to other political systems. They count toward a story's total coverage and appear in an International column and AI framing line, but they never enter the left/center/right percentages or the blindspot and polarization rules.</p>
+      <p>Each outlet carries the region where it is based. Each story also carries an <b>event region</b>, inferred from place names, demonyms and institutions in its headlines and excerpts. A region must appear at least twice and lead the next region by half again to be assigned. Stories naming several regions are labelled Global, and stories naming none are Unspecified. This is a keyword lexicon, not entity resolution, so a shared place name can mislabel a story. Only English-language feeds are used, so the regional press is represented by its English editions.</p>
+      <h2>7. Ratings and their limits</h2>
       <div class="note">Outlet bias, factuality and ownership values are provisional seeds approximated from public aggregate rating charts (AllSides, Ad Fontes Media, Media Bias/Fact Check). They describe outlets, not individual articles, and they have not been independently validated here. Calibrate them in <code>config/sources.tsv</code> against a cited methodology before analytic or published use.</div>
       <p>Known constraints: keyword clustering can split one event into two stories or merge adjacent events; feed availability shifts coverage counts (an outlet without a working feed is invisible, which can manufacture an apparent blindspot); and category labels come from a keyword lexicon, not human review.</p>
-      <h2>7. Privacy</h2>
+      <h2>8. Privacy</h2>
       <p>Reading history, outbound clicks and bookmarks are stored in your browser's local storage. The server keeps no user data.</p></div>`;
   }
 
@@ -564,6 +619,7 @@
       case 'my-bias': return viewMyBias();
       case 'saved': return viewSaved();
       case 'method': return viewMethod();
+      case 'world': return viewWorld();
       case 'search': return viewSearch(new URLSearchParams(qs).get('q') || '');
       default: return viewHome();
     }
@@ -583,6 +639,12 @@
     if (src) recordClick({ name: src.dataset.src, bias: src.dataset.bias || 'Center' });
     const sort = e.target.closest('[data-sort]');
     if (sort) { state.sort = sort.dataset.sort; viewHome(); return; }
+    const reg = e.target.closest('[data-region]');
+    if (reg) {
+      state.region = reg.dataset.region;
+      if (location.hash && location.hash !== '#/') location.hash = '#/'; else viewHome();
+      return;
+    }
     const bias = e.target.closest('.seg [data-bias]');
     if (bias) { state.bias = bias.dataset.bias; viewHome(); return; }
     const cat = e.target.closest('.topic[data-cat]');
@@ -592,6 +654,10 @@
       if (location.hash && location.hash !== '#/') location.hash = '#/'; else viewHome();
     }
   });
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'regionSel') { state.region = e.target.value; viewHome(); }
+  });
+
   $('#searchForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const q = $('#searchInput').value.trim();

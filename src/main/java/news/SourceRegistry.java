@@ -8,7 +8,7 @@ import java.util.*;
 
 /** Loads the outlet registry from config/sources.tsv. */
 final class SourceRegistry {
-    private static final Set<String> BIASES = Set.of("Left", "Lean Left", "Center", "Lean Right", "Right");
+    private static final Set<String> BIASES = Set.of("Left", "Lean Left", "Center", "Lean Right", "Right", "Unrated");
     private final Map<String, Models.Source> byId = new LinkedHashMap<>();
     private final Map<String, Models.Source> byName = new HashMap<>();
 
@@ -19,7 +19,7 @@ final class SourceRegistry {
             if (line.isBlank() || line.startsWith("#")) continue;
             String[] f = line.split("\t", -1);
             if (f.length < 9) {
-                System.err.println("[registry] skipping line " + lineNo + ": expected 9 tab-separated columns");
+                System.err.println("[registry] skipping line " + lineNo + ": expected 10 tab-separated columns");
                 continue;
             }
             String bias = f[2].trim();
@@ -27,8 +27,12 @@ final class SourceRegistry {
                 System.err.println("[registry] skipping line " + lineNo + ": unknown bias '" + bias + "'");
                 continue;
             }
+            String region = f.length > 9 && Regions.ALL.contains(f[9].trim()) ? f[9].trim() : Regions.GLOBAL;
+            if (f.length > 9 && !Regions.ALL.contains(f[9].trim())) {
+                System.err.println("[registry] line " + lineNo + ": unknown region '" + f[9].trim() + "', using Global");
+            }
             Models.Source s = new Models.Source(f[0].trim(), f[1].trim(), bias, f[3].trim(),
-                    f[4].trim(), f[5].trim(), f[6].trim(), f[7].trim(), f[8].trim());
+                    f[4].trim(), f[5].trim(), f[6].trim(), f[7].trim(), f[8].trim(), region);
             byId.put(s.id(), s);
             byName.put(s.name().toLowerCase(Locale.ROOT), s);
         }
