@@ -129,7 +129,11 @@ public final class SelfTest {
               && !sum.framing().containsKey("right"), "framing kept only where grounded");
         check(new Summarizer("m", (a, b) -> "{\"bullets\":[{\"text\":\"Only one.\",\"sources\":[\"S1\"]}]}", 1, 1).generate(story) == null,
               "summary with fewer than 2 bullets discarded");
-        check(new Summarizer("m", (a, b) -> "I cannot help with that.", 1, 1).generate(story) == null, "non-JSON reply discarded");
+        Summarizer noJson = new Summarizer("m", (a, b) -> "I cannot help with that.", 1, 1);
+        check(noJson.generate(story) == null, "non-JSON reply discarded");
+        check(noJson.rejectionCounts().getOrDefault("no_json_object", 0) == 1, "rejection reason recorded");
+        check(sz.rejectionCounts().getOrDefault("bullet_number_not_in_sources", 0) == 2
+              && sz.rejectionCounts().getOrDefault("bullet_without_valid_source", 0) == 1, "bullet rejection reasons counted " + sz.rejectionCounts());
         check(Summarizer.numbersSupported("About 1,200 displaced", List.of(new Models.Article(reg.byId("bbc"), "1200 displaced", "", "https://t.test/n", null, t))),
               "thousands separators normalized");
 
@@ -164,8 +168,19 @@ public final class SelfTest {
                 ex.getResponseHeaders().set("Retry-After", "1");
                 out = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
                 ex.sendResponseHeaders(429, out.length);
+            } else if (hits[0] == 2) {
+                // Reasoning consumed the budget: no content, finish_reason "length".
+                Map<String, Object> msg = new java.util.HashMap<>();
+                msg.put("role", "assistant");
+                msg.put("content", null);
+                msg.put("reasoning_content", "thinking...");
+                out = Json.write(Map.of("choices", List.of(Map.of("message", msg, "finish_reason", "length"))))
+                        .getBytes(StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(200, out.length);
             } else {
-                out = Json.write(Map.of("choices", List.of(Map.of("message", Map.of("role", "assistant", "content", model)))))
+                // Content returned as an array of parts.
+                out = Json.write(Map.of("choices", List.of(Map.of("finish_reason", "stop", "message", Map.of("role", "assistant",
+                        "content", List.of(Map.of("type", "text", "text", model.substring(0, 40)), Map.of("type", "text", "text", model.substring(40))))))))
                         .getBytes(StandardCharsets.UTF_8);
                 ex.sendResponseHeaders(200, out.length);
             }
@@ -178,7 +193,8 @@ public final class SelfTest {
             Summarizer live = new Summarizer("mercury-3", new Summarizer.HttpTransport(url, "test-key", "mercury-3"), 5, 1);
             Summarizer.Summary viaHttp = live.generate(story);
             check(viaHttp != null && viaHttp.bullets().size() == 3, "http transport end to end");
-            check(hits[0] == 2, "429 retried once (hits " + hits[0] + ")");
+            check(hits[0] == 3, "429 retried, then empty length-limited reply retried (hits " + hits[0] + ")");
+            check(Double.valueOf(4000).equals(MiniJson.cast(MiniJson.parse(sent[0])).get("max_tokens")), "token budget doubled after length cut-off");
             check("Bearer test-key".equals(auth[0]), "bearer auth header sent");
             Map<String, Object> req = MiniJson.cast(MiniJson.parse(sent[0]));
             check("mercury-3".equals(req.get("model")) && Double.valueOf(0.5).equals(req.get("temperature")), "request model and temperature");

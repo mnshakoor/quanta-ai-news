@@ -44,6 +44,8 @@ final class Summarizer {
 
     private final String model;
     private final Transport transport;
+    /** Why summaries or bullets were rejected in the current run, for tuning (logged, never published). */
+    private final Map<String, java.util.concurrent.atomic.AtomicInteger> rejections = new ConcurrentHashMap<>();
     private final int maxNew;
     private final int threads;
 
@@ -106,6 +108,8 @@ final class Summarizer {
         pool.shutdownNow();
         System.out.printf("[summary] %d cached, %d generated, %d rejected by validation, %d failed (model %s)%n",
                 out.size() - stats[0], stats[0], stats[1], stats[2], model);
+        if (!rejections.isEmpty()) System.out.println("[summary] rejection reasons: " + new TreeMap<>(rejections));
+        rejections.clear();
         return out;
     }
 
@@ -179,7 +183,7 @@ final class Summarizer {
 
     Summary validate(Models.Story s, List<Models.Article> arts, String raw) {
         Map<String, Object> obj;
-        try { obj = MiniJson.firstObject(raw); } catch (IllegalArgumentException e) { return null; }
+        try { obj = MiniJson.firstObject(raw); } catch (IllegalArgumentException e) { reject("no_json_object"); return null; }
 
         List<Bullet> bullets = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -193,11 +197,12 @@ final class Summarizer {
                 Models.Article a = resolve(MiniJson.str(ref), arts);
                 if (a != null && !ids.contains(a.source().id())) { cited.add(a); ids.add(a.source().id()); }
             }
-            if (cited.isEmpty() || !numbersSupported(text, cited)) continue;
+            if (cited.isEmpty()) { reject("bullet_without_valid_source"); continue; }
+            if (!numbersSupported(text, cited)) { reject("bullet_number_not_in_sources"); continue; }
             bullets.add(new Bullet(text, ids));
             if (bullets.size() == 5) break;
         }
-        if (bullets.size() < 2) return null;
+        if (bullets.size() < 2) { reject("fewer_than_2_bullets"); return null; }
 
         Map<String, String> framing = new LinkedHashMap<>();
         Map<String, Object> f = MiniJson.cast(obj.get("framing"));
@@ -209,6 +214,16 @@ final class Summarizer {
             }
         }
         return new Summary(cacheKey(s), s.id(), List.copyOf(bullets), framing, model, Instant.now());
+    }
+
+    private void reject(String reason) {
+        rejections.computeIfAbsent(reason, k -> new java.util.concurrent.atomic.AtomicInteger()).incrementAndGet();
+    }
+
+    Map<String, Integer> rejectionCounts() {
+        Map<String, Integer> m = new TreeMap<>();
+        rejections.forEach((k, v) -> m.put(k, v.get()));
+        return m;
     }
 
     private static Models.Article resolve(String ref, List<Models.Article> arts) {
@@ -331,20 +346,20 @@ final class Summarizer {
 
         @Override
         public String complete(String system, String user) throws Exception {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", model);
-            body.put("messages", List.of(Map.of("role", "system", "content", system),
-                                         Map.of("role", "user", "content", user)));
-            body.put("temperature", 0.5);
-            body.put("max_tokens", 700);
-            String payload = Json.write(body);
-
+            int maxTokens = 2000;
+            boolean grewBudget = false;
             for (int attempt = 1; ; attempt++) {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("model", model);
+                body.put("messages", List.of(Map.of("role", "system", "content", system),
+                                             Map.of("role", "user", "content", user)));
+                body.put("temperature", 0.5);
+                body.put("max_tokens", maxTokens);
                 HttpRequest req = HttpRequest.newBuilder(URI.create(endpoint))
-                        .timeout(Duration.ofSeconds(60))
+                        .timeout(Duration.ofSeconds(90))
                         .header("Authorization", "Bearer " + apiKey)
                         .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                        .POST(HttpRequest.BodyPublishers.ofString(Json.write(body), StandardCharsets.UTF_8))
                         .build();
                 HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                 int code = resp.statusCode();
@@ -361,10 +376,34 @@ final class Summarizer {
                 }
                 Map<String, Object> json = MiniJson.cast(MiniJson.parse(resp.body()));
                 Map<String, Object> first = MiniJson.cast(MiniJson.list(json.get("choices")).stream().findFirst().orElse(null));
-                String content = MiniJson.str(MiniJson.cast(first.get("message")).get("content"));
-                if (content == null) throw new IllegalStateException("response had no message content");
-                return content;
+                Map<String, Object> message = MiniJson.cast(first.get("message"));
+                String content = contentText(message.get("content"));
+                if (content != null && !content.isBlank()) return content;
+
+                String finish = String.valueOf(first.get("finish_reason"));
+                // Reasoning models can spend the whole budget before answering: grow it once and retry.
+                if ("length".equals(finish) && !grewBudget) {
+                    maxTokens *= 2;
+                    grewBudget = true;
+                    continue;
+                }
+                throw new IllegalStateException("response had no message content (finish_reason=" + finish
+                        + ", message fields=" + message.keySet() + ", max_tokens=" + maxTokens + ")");
             }
+        }
+
+        /** Accepts a plain string or an array of content parts ({"type":"text","text":...}). */
+        static String contentText(Object content) {
+            if (content instanceof String str) return str;
+            StringBuilder sb = new StringBuilder();
+            for (Object part : MiniJson.list(content)) {
+                if (part instanceof String str) sb.append(str);
+                else {
+                    String t = MiniJson.str(MiniJson.cast(part).get("text"));
+                    if (t != null) sb.append(t);
+                }
+            }
+            return sb.length() == 0 ? null : sb.toString();
         }
     }
 }
