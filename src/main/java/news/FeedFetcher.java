@@ -74,6 +74,9 @@ final class FeedFetcher {
         return new Result(new ArrayList<>(all), new HashMap<>(status));
     }
 
+    /** Optional injected ReliefWeb client (tests); otherwise built from the environment. */
+    ReliefWebClient reliefWeb;
+
     /** HTTP/1.1-only client, used to retry after HTTP/2 stream resets (RST_STREAM, GOAWAY). */
     private final HttpClient http11 = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -92,6 +95,13 @@ final class FeedFetcher {
         for (String url : s.feedUrl().split("\\s*\\|\\s*")) {
             if (url.isBlank()) continue;
             try {
+                if (url.trim().equals(ReliefWebClient.SCHEME)) {
+                    ReliefWebClient rw = reliefWeb != null ? reliefWeb : ReliefWebClient.fromEnv(http);
+                    if (rw == null) throw new IllegalStateException("RELIEFWEB_APPNAME not set");
+                    List<Models.Article> items = rw.fetch(s);
+                    if (items.isEmpty()) throw new IllegalStateException("ReliefWeb API returned no reports");
+                    return items;
+                }
                 return parse(s, download(url.trim()));
             } catch (Exception e) {
                 last = e;

@@ -82,6 +82,7 @@ public final class SelfTest {
         regionTests(reg);
         categoryRegressionTests(reg);
         feedRobustnessTests();
+        reliefWebTests(reg);
 
         System.out.println(failures == 0 ? "ALL TESTS PASSED" : failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
@@ -212,7 +213,7 @@ public final class SelfTest {
         boolean allValid = true;
         for (Models.Source s : reg.all()) {
             allValid &= ids.add(s.id()) && Regions.ALL.contains(s.region())
-                && (s.feedUrl().isEmpty() || s.feedUrl().startsWith("http"));
+                && (s.feedUrl().isEmpty() || s.feedUrl().startsWith("http") || s.feedUrl().startsWith(ReliefWebClient.SCHEME));
         }
         check(reg.all().size() >= 85 && allValid, "registry loads " + reg.all().size() + " outlets with unique ids and valid regions");
         check(reg.byId("reliefweb") != null && reg.byId("unnews") != null, "ReliefWeb and UN News registered");
@@ -311,6 +312,71 @@ public final class SelfTest {
             boolean threw = false;
             try { ff.fetch(src.apply(base + "/missing")); } catch (IllegalStateException e) { threw = e.getMessage().contains("404"); }
             check(threw, "single failing URL still reports HTTP status");
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    private static void reliefWebTests(SourceRegistry reg) throws Exception {
+        System.out.println("  -- ReliefWeb API and registry changes");
+        check(reg.byId("mailguardian") != null && reg.byId("humangle") != null, "Mail & Guardian and HumAngle registered");
+        check(reg.byId("news24") == null && reg.byId("newsmax") == null, "News24 and Newsmax removed");
+        check(reg.byId("humangle").region().equals(Regions.SSA) && reg.byId("humangle").group().equals("unrated"), "HumAngle: Sub-Saharan Africa, unrated");
+
+        String data = "{\"data\":[{\"id\":4100001,\"fields\":{\"title\":\"Sudan: Flash Update No. 12\","
+            + "\"url_alias\":\"https://reliefweb.int/report/sudan/flash-update-12\",\"body\":\"<p>Fighting in El Fasher displaced 12,000 people.</p>\","
+            + "\"date\":{\"created\":\"2026-11-10T03:00:00+00:00\"}}},"
+            + "{\"id\":4100002,\"fields\":{\"title\":\"No link item\"}}]}";
+        int[] hits = {0};
+        String[] lastQuery = {null};
+        com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        srv.createContext("/v2/reports", ex -> {
+            hits[0]++;
+            String q = ex.getRequestURI().getRawQuery();
+            lastQuery[0] = q;
+            byte[] out; int code;
+            if (q.contains("appname=denied")) { code = 403; out = "{}".getBytes(StandardCharsets.UTF_8); }
+            else if (q.contains("filter%5Bfield%5D=headline")) { code = 400; out = "{\"error\":\"unknown field\"}".getBytes(StandardCharsets.UTF_8); }
+            else { code = 200; out = data.getBytes(StandardCharsets.UTF_8); }
+            ex.sendResponseHeaders(code, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        String now = DateTimeFormatter.RFC_1123_DATE_TIME.format(Instant.now().atOffset(ZoneOffset.UTC));
+        srv.createContext("/rss", ex -> {
+            byte[] out = ("<rss><channel><item><title>RSS fallback item</title><link>https://t.test/rw</link><pubDate>" + now
+                    + "</pubDate></item></channel></rss>").getBytes(StandardCharsets.UTF_8);
+            ex.sendResponseHeaders(200, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        srv.start();
+        try {
+            String base = "http://127.0.0.1:" + srv.getAddress().getPort();
+            Models.Source rwSrc = reg.byId("reliefweb");
+            Models.Source withFallback = new Models.Source(rwSrc.id(), rwSrc.name(), rwSrc.bias(), rwSrc.factuality(), rwSrc.ownership(),
+                    rwSrc.owner(), rwSrc.country(), rwSrc.homepage(), "reliefweb-api | " + base + "/rss", rwSrc.region());
+            java.net.http.HttpClient hc = java.net.http.HttpClient.newHttpClient();
+
+            FeedFetcher ff = new FeedFetcher();
+            ff.reliefWeb = new ReliefWebClient(hc, base + "/v2/reports", "test-app");
+            List<Models.Article> got = ff.fetch(withFallback);
+            check(got.size() == 2 && got.get(0).title().equals("Sudan: Flash Update No. 12")
+                  && got.get(1).link().equals("https://reliefweb.int/node/4100002"), "API reports parsed; missing URL rebuilt from report id");
+            check(got.get(0).description().equals("Fighting in El Fasher displaced 12,000 people."), "report body cleaned into excerpt");
+            check(hits[0] == 2 && lastQuery[0].contains("appname=test-app") && lastQuery[0].contains("sort%5B%5D="),
+                  "headline query rejected, fell back to latest reports with app name");
+
+            FeedFetcher denied = new FeedFetcher();
+            denied.reliefWeb = new ReliefWebClient(hc, base + "/v2/reports", "denied");
+            String msg = "";
+            try { new ReliefWebClient(hc, base + "/v2/reports", "denied").fetch(rwSrc); } catch (IllegalStateException e) { msg = e.getMessage(); }
+            check(msg.contains("403") && msg.contains("app name") && !msg.contains("denied"), "403 explained without leaking the app name");
+            check(denied.fetch(withFallback).get(0).title().equals("RSS fallback item"), "API refusal falls back to RSS");
+
+            FeedFetcher noApp = new FeedFetcher();  // RELIEFWEB_APPNAME is not set in tests
+            check(System.getenv("RELIEFWEB_APPNAME") != null || noApp.fetch(withFallback).get(0).title().equals("RSS fallback item"),
+                  "missing app name falls back to RSS");
         } finally {
             srv.stop(0);
         }

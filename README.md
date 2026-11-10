@@ -25,7 +25,9 @@ Behaviour to know:
 
 ## International and regional coverage
 
-The registry includes 47 international outlets across eight regions, alongside the US outlets: Europe, Russia & Eurasia, Middle East & North Africa, Sub-Saharan Africa, South Asia, East Asia & Pacific, Latin America, and Global. The Global group covers UN News, ReliefWeb (OCHA headlines feed), International Crisis Group, Foreign Policy, War on the Rocks and Defense One. State-funded outlets such as TASS, RT, CGTN, Global Times, Press TV, teleSUR and Anadolu are included for comparison and labelled **State-Funded** under Ownership.
+The registry includes 47 international outlets across eight regions, alongside the US outlets: Europe, Russia & Eurasia, Middle East & North Africa, Sub-Saharan Africa, South Asia, East Asia & Pacific, Latin America, and Global. The Global group covers UN News, ReliefWeb (OCHA, via the ReliefWeb API), International Crisis Group, Foreign Policy, War on the Rocks and Defense One. State-funded outlets such as TASS, RT, CGTN, Global Times, Press TV, teleSUR and Anadolu are included for comparison and labelled **State-Funded** under Ownership.
+
+**ReliefWeb:** fetched through the ReliefWeb API v2, which requires an app name pre-approved by ReliefWeb. Store it as the repository secret `RELIEFWEB_APPNAME`. The client first requests ReliefWeb's curated headline reports, then falls back to the latest reports if that query is rejected. Without the secret, or if the API refuses, it falls back to the RSS headlines feed. The app name is never written to logs.
 
 **Unrated by design:** international outlets carry the bias value `Unrated`, because the US left/right scale does not transfer to other political systems. They count toward a story's total coverage and get their own International column, tab and AI framing line. They are excluded from the L/C/R percentages and from the blindspot and polarization rules, so those measures keep their meaning.
 
@@ -62,6 +64,7 @@ Each story can carry 3 to 5 AI-generated bullets plus a one-line note on how lef
 | `SUMMARY_ENDPOINT` | `https://api.inceptionlabs.ai/v1/chat/completions` | Any OpenAI-compatible endpoint |
 | `SUMMARY_MAX_NEW` | `30` | New summaries per run |
 | `SUMMARY_THREADS` | `3` | Concurrent API calls |
+| `RELIEFWEB_APPNAME` | (unset) | Pre-approved ReliefWeb API app name |
 
 The same variables work for the local server: `INCEPTION_API_KEY=... ./run.sh`.
 

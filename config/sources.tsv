@@ -11,7 +11,8 @@
 # count as coverage but are excluded from the L/C/R distribution and the blindspot rules.
 # Feed URLs for outlets added in the international expansion were not verified at commit time; the
 # Sources page reports live feed health. An empty feedUrl keeps the outlet rated but skips fetching.
-# feedUrl may list fallbacks separated by ' | '; they are tried in order.
+# feedUrl may list fallbacks separated by ' | '; they are tried in order. 'reliefweb-api' uses the ReliefWeb
+# API v2 and needs a pre-approved app name in the RELIEFWEB_APPNAME environment variable.
 
 nyt	New York Times	Lean Left	High	Media Conglomerate	The New York Times Company	US	https://www.nytimes.com	https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml	North America
 wapo	Washington Post	Lean Left	High	Billionaire-Owned	Nash Holdings	US	https://www.washingtonpost.com	https://feeds.washingtonpost.com/rss/national	North America
@@ -51,7 +52,6 @@ federalist	The Federalist	Right	Mixed	Independent	FDRLST Media	US	https://thefed
 dailycaller	Daily Caller	Right	Mixed	Independent	Daily Caller Inc.	US	https://dailycaller.com	https://dailycaller.com/feed/	North America
 nationalreview	National Review	Right	Mixed	Nonprofit	National Review Institute	US	https://www.nationalreview.com	https://www.nationalreview.com/feed/	North America
 blaze	The Blaze	Right	Mixed	Independent	Blaze Media	US	https://www.theblaze.com	https://www.theblaze.com/feeds/feed.rss	North America
-newsmax	Newsmax	Right	Mixed	Private	Newsmax Media	US	https://www.newsmax.com	https://www.newsmax.com/rss/Newsfront/16/	North America
 timesofisrael	Times of Israel	Unrated	Unrated	Private	Times of Israel Ltd	IL	https://www.timesofisrael.com	https://www.timesofisrael.com/feed/	Middle East & North Africa
 jpost	Jerusalem Post	Unrated	Unrated	Private	Jerusalem Post Group	IL	https://www.jpost.com	https://www.jpost.com/rss/rssfeedsfrontpage.aspx	Middle East & North Africa
 arabnews	Arab News	Unrated	Unrated	Private	Saudi Research and Media Group	SA	https://www.arabnews.com	https://www.arabnews.com/rss.xml	Middle East & North Africa
@@ -85,7 +85,8 @@ dawn	Dawn	Unrated	Unrated	Private	Dawn Media Group	PK	https://www.dawn.com	https
 allafrica	AllAfrica	Unrated	Unrated	Private	AllAfrica Global Media	AFR	https://allafrica.com	https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf	Sub-Saharan Africa
 africanews	Africanews	Unrated	Unrated	Private	Alpac Capital	CG	https://www.africanews.com	https://www.africanews.com/feed/rss	Sub-Saharan Africa
 dailymaverick	Daily Maverick	Unrated	Unrated	Independent	Daily Maverick	ZA	https://www.dailymaverick.co.za	https://www.dailymaverick.co.za/dmrss/	Sub-Saharan Africa
-news24	News24	Unrated	Unrated	Media Conglomerate	Media24 (Naspers)	ZA	https://www.news24.com	https://feeds.news24.com/articles/news24/TopStories/rss | https://www.news24.com/rss | https://feeds.24.com/articles/news24/TopStories/rss	Sub-Saharan Africa
+mailguardian	Mail & Guardian	Unrated	Unrated	Private	Mail & Guardian Media	ZA	https://mg.co.za	https://mg.co.za/feed/ | https://mg.co.za/rss/	Sub-Saharan Africa
+humangle	HumAngle	Unrated	Unrated	Independent	HumAngle Media	NG	https://www.humanglemedia.com	https://humanglemedia.com/feed/ | https://www.humanglemedia.com/feed/	Sub-Saharan Africa
 premiumtimes	Premium Times	Unrated	Unrated	Independent	Premium Times Services	NG	https://www.premiumtimesng.com	https://www.premiumtimesng.com/feed	Sub-Saharan Africa
 nationke	Nation (Kenya)	Unrated	Unrated	Media Conglomerate	Nation Media Group	KE	https://nation.africa	https://nation.africa/kenya/rss.xml	Sub-Saharan Africa
 mercopress	MercoPress	Unrated	Unrated	Private	MercoPress	UY	https://en.mercopress.com	https://en.mercopress.com/rss/	Latin America
@@ -98,4 +99,4 @@ warontherocks	War on the Rocks	Unrated	Unrated	Independent	Metamorphic Media	US	
 defenseone	Defense One	Unrated	Unrated	Private	Government Executive Media Group	US	https://www.defenseone.com	https://www.defenseone.com/rss/all/	Global
 unnews	UN News	Unrated	Unrated	Intergovernmental	United Nations	INT	https://news.un.org	https://news.un.org/feed/subscribe/en/news/all/rss.xml	Global
 crisisgroup	International Crisis Group	Unrated	Unrated	Nonprofit	International Crisis Group	INT	https://www.crisisgroup.org	https://www.crisisgroup.org/rss	Global
-reliefweb	ReliefWeb	Unrated	Unrated	Intergovernmental	UN OCHA	INT	https://reliefweb.int	https://reliefweb.int/headlines/rss.xml	Global
+reliefweb	ReliefWeb	Unrated	Unrated	Intergovernmental	UN OCHA	INT	https://reliefweb.int	reliefweb-api | https://reliefweb.int/headlines/rss.xml	Global

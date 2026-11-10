@@ -52,6 +52,8 @@ jobs:
           MIN_FEEDS: "5"
           # AI summaries (Inception Mercury 3). Disabled automatically when the secret is absent.
           INCEPTION_API_KEY: ${{ secrets.INCEPTION_API_KEY }}
+          # ReliefWeb API v2 app name (pre-approved by ReliefWeb). Without it, ReliefWeb falls back to RSS.
+          RELIEFWEB_APPNAME: ${{ secrets.RELIEFWEB_APPNAME }}
           SUMMARY_MODEL: mercury-3
           SUMMARY_MAX_NEW: "30"
           PREVIOUS_SUMMARIES_URL: ${{ steps.pages.outputs.base_url }}/data/summaries.json
