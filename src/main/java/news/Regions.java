@@ -75,7 +75,7 @@ final class Regions {
             "kinshasa", "goma", "m23", "rwanda", "rwandan", "kigali", "uganda", "ugandan", "kampala", "tanzania",
             "ghana", "ghanaian", "senegal", "mali", "malian", "bamako", "burkina faso", "niger", "niamey",
             "chad", "cameroon", "mozambique", "zimbabwe", "zambia", "malawi", "angola", "namibia", "botswana",
-            "madagascar", "eritrea", "djibouti", "sahel", "ecowas", "african union", "ivory coast",
+            "madagascar", "maputo", "cabo delgado", "frelimo", "renamo", "mozambican", "eritrea", "djibouti", "sahel", "ecowas", "african union", "ivory coast",
             "cote d'ivoire", "liberia", "sierra leone", "guinea", "gabon", "burundi"));
         GAZETTEER.put(SOUTH_ASIA, List.of(
             "india", "indian", "indians", "new delhi", "delhi", "mumbai", "modi", "kashmir", "pakistan",

@@ -222,6 +222,8 @@ public final class SelfTest {
         check(Regions.eventRegion("Houthi rebels say 44 killed in airstrike near Yemeni capital Sanaa").equals(Regions.MENA), "region: Yemen -> MENA");
         check(Regions.eventRegion("Russia launches drones at Kyiv overnight, Ukrainian officials say").equals(Regions.EURASIA), "region: Ukraine war -> Russia & Eurasia");
         check(Regions.eventRegion("RSF fighters advance in Darfur as Sudan famine deepens").equals(Regions.SSA), "region: Sudan -> Sub-Saharan Africa");
+        check(Regions.eventRegion("Insurgents attack Mocimboa da Praia in Cabo Delgado, Mozambican officials say").equals(Regions.SSA),
+              "region: Cabo Delgado -> Sub-Saharan Africa");
         check(Regions.eventRegion("Senate passes spending bill").equals(Regions.NORTH_AMERICA), "region: US domestic -> North America");
         check(Regions.eventRegion("Local bakery wins national pastry award").equals(Regions.UNSPECIFIED), "region: no place names -> Unspecified");
         check(Regions.eventRegion("Leaders from China, Brazil, India and France meet; Chinese, Brazilian, Indian and French envoys sign accord").equals(Regions.GLOBAL),
@@ -328,6 +330,8 @@ public final class SelfTest {
         check(reg.byId("mailguardian") != null && reg.byId("humangle") != null, "Mail & Guardian and HumAngle registered");
         check(reg.byId("news24") == null && reg.byId("newsmax") == null, "News24 and Newsmax removed");
         check(reg.byId("humangle").region().equals(Regions.SSA) && reg.byId("humangle").group().equals("unrated"), "HumAngle: Sub-Saharan Africa, unrated");
+        check(reg.byId("zitamar") != null && reg.byId("zitamar").region().equals(Regions.SSA) && reg.byId("zitamar").group().equals("unrated"),
+              "Zitamar News: Sub-Saharan Africa, unrated");
 
         String data = "{\"data\":[{\"id\":4100001,\"fields\":{\"title\":\"Sudan: Flash Update No. 12\","
             + "\"url_alias\":\"https://reliefweb.int/report/sudan/flash-update-12\",\"body\":\"<p>Fighting in El Fasher displaced 12,000 people.</p>\","
